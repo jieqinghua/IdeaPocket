@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+.claude/settings.local.json
+
+# 本地敏感配置（勿入库）
+.env
+.env.*

@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "IdeaPocket",
+    "slug": "ideapocket",
+    "version": "0.4.7",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./src/assets/icons/app-icon.png",
+    "splash": {
+      "image": "./src/assets/icons/app-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F8FC"
+    },
+    "backgroundColor": "#F7F8FC",
+    "androidNavigationBar": {
+      "backgroundColor": "#F7F8FC",
+      "barStyle": "dark-content"
+    },
+    "android": {
+      "package": "com.ideapocket.app",
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-splash-screen",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "允许 IdeaPocket 使用麦克风，把你说的话转写成文字记录。"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "允许 IdeaPocket 访问相册，把图片附加到笔记。",
+          "cameraPermission": "允许 IdeaPocket 使用相机，为笔记拍摄图片。"
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}
