@@ -36,8 +36,8 @@ const createAvailableBackupDirectory = (parentDirectory, exportedAt) => {
   throw new Error('备份目录过多，请更换导出位置后重试。');
 };
 
-async function resolveBackupDirectory() {
-  if (Platform.OS === 'android' && typeof Directory.pickDirectoryAsync === 'function') {
+async function resolveBackupDirectory(options = {}) {
+  if (!options.preferAppDirectory && Platform.OS === 'android' && typeof Directory.pickDirectoryAsync === 'function') {
     try {
       const picked = await Directory.pickDirectoryAsync();
       if (picked) return picked;
@@ -58,7 +58,7 @@ export async function exportNotesBackup(notes, themes, options = {}) {
   let directory = null;
   const copiedImages = [];
   try {
-    const parentDirectory = options.directory || await resolveBackupDirectory();
+    const parentDirectory = options.directory || await resolveBackupDirectory(options);
     console.info('[backup:saf-v4] selected directory', { scheme: parentDirectory.uri.split(':')[0] });
 
     stage = 'create-backup-directory';
@@ -132,4 +132,16 @@ export async function exportNotesBackup(notes, themes, options = {}) {
     wrapped.cause = error;
     throw wrapped;
   }
+}
+
+export async function readBackupFolder(directory) {
+  if (!directory?.list) throw new Error('无法读取所选备份文件夹。');
+  const jsonFiles = directory.list().filter((entry) => entry?.name?.toLowerCase?.().endsWith('.json'));
+  if (jsonFiles.length !== 1) {
+    throw new Error(jsonFiles.length ? '备份文件夹中只能包含一个 JSON 备份文件。' : '所选文件夹中没有 JSON 备份文件。');
+  }
+  return {
+    contents: await jsonFiles[0].text(),
+    imageDirectory: new Directory(directory, 'images'),
+  };
 }

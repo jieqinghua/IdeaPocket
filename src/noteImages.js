@@ -87,3 +87,24 @@ export function copyStoredNoteImage(image, directory, targetName = image?.fileNa
   if (!destination.exists) throw new Error(`笔记图片复制失败：${targetName}`);
   return destination.uri;
 }
+
+export function restoreBackupImage(sourceDirectory, image, noteId) {
+  const sourceName = String(image?.fileName || '');
+  if (!sourceName || sourceName !== sourceName.split('/').pop() || sourceName.includes('\\')) {
+    throw new Error('备份图片文件名无效。');
+  }
+  const source = new File(sourceDirectory, sourceName);
+  if (!source.exists) throw new Error(`备份中缺少图片：images/${sourceName}`);
+  const directory = ensureImageDirectory();
+  const fileName = makeImageFileName(noteId);
+  const destination = new File(directory, fileName);
+  destination.write(source.bytesSync());
+  if (!destination.exists) throw new Error(`图片恢复失败：${sourceName}`);
+  return {
+    uri: destination.uri,
+    fileName,
+    width: Number(image?.width) || null,
+    height: Number(image?.height) || null,
+    mimeType: image?.mimeType || 'image/jpeg',
+  };
+}

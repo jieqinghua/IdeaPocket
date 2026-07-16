@@ -46,6 +46,7 @@ const {
   chooseAndStoreNoteImage,
   copyStoredNoteImage,
   pickNoteImage,
+  restoreBackupImage,
   storeNoteImage,
 } = require('../noteImages');
 const { Directory } = require('expo-file-system');
@@ -101,4 +102,22 @@ test('备份图片通过授权目录创建文件并写入内容', () => {
 
   expect(uri).toBe('content://backup/images/n1.jpg');
   expect(mockFiles.has(uri)).toBe(true);
+});
+
+test('从备份 images 目录恢复图片到应用私有目录', () => {
+  const sourceDirectory = new Directory('content://backup/images');
+  mockFiles.add('content://backup/images/n1.jpg');
+
+  const image = restoreBackupImage(
+    sourceDirectory,
+    { fileName: 'n1.jpg', width: 800, height: 600, mimeType: 'image/jpeg' },
+    'restored-note'
+  );
+
+  expect(image).toMatchObject({
+    uri: expect.stringMatching(/^file:\/\/\/documents\/IdeaPocketImages\/restored-note-.+\.jpg$/),
+    width: 800,
+    height: 600,
+  });
+  expect(mockFiles.has(image.uri)).toBe(true);
 });

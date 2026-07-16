@@ -17,8 +17,8 @@ import {
   setNoteImage,
   waterNote,
 } from './noteActions';
-import { chooseAndStoreNoteImage, removeStoredNoteImage } from './noteImages';
-import { loadNotes, loadThemeState, saveNotes, saveThemeState } from './storage';
+import { chooseAndStoreNoteImage, removeStoredNoteImage, restoreBackupImage } from './noteImages';
+import { loadNotes, loadThemeState, restoreImportedData, saveNotes, saveThemeState } from './storage';
 import {
   dissolveTheme,
   noteFingerprint,
@@ -29,6 +29,7 @@ import {
   renameTheme,
 } from './themeActions';
 import { exportNotesBackup } from './backupFiles';
+import { buildImportState, parseBackupJson, previewBackup } from './lib/backupImport';
 
 export function useNotes() {
   const [notes, setNotes] = useState([]);
@@ -44,6 +45,7 @@ export function useNotes() {
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [backupStatus, setBackupStatus] = useState('idle');
+  const [importStatus, setImportStatus] = useState('idle');
   const aliveRef = useRef(true);
   const saveQueueRef = useRef(null);
   const themeSaveQueueRef = useRef(null);
@@ -72,7 +74,9 @@ export function useNotes() {
     setReady(false);
     setLoadError('');
     try {
-      const [loaded, themeState] = await Promise.all([loadNotes(), loadThemeState()]);
+      // loadNotes 会先完成可能中断的恢复事务，主题必须随后读取，避免得到旧状态。
+      const loaded = await loadNotes();
+      const themeState = await loadThemeState();
       if (!aliveRef.current) return;
       setNotes(loaded);
       setThemes(themeState.themes);
@@ -313,6 +317,42 @@ export function useNotes() {
     }
   }, [notes, ready, themes]);
 
+  const previewImport = useCallback((contents) => previewBackup(parseBackupJson(contents)), []);
+
+  const importBackup = useCallback(async (contents, mode, imageDirectory) => {
+    if (!ready) throw new Error('本地笔记还没有读取完成');
+    const payload = parseBackupJson(contents);
+    const next = buildImportState(notes, payload, mode);
+    if (next.images.length && !imageDirectory) throw new Error('请选择包含 images 文件夹的完整备份目录。');
+    setImportStatus('running');
+    const restoredImages = [];
+    try {
+      const safetyBackup = await exportNotesBackup(notes, themes, { preferAppDirectory: true });
+      for (const item of next.images) {
+        const image = restoreBackupImage(imageDirectory, item.image, item.note.id);
+        item.note.image = image;
+        restoredImages.push(image);
+      }
+      await restoreImportedData(next.notes, { themes: next.themes });
+      if (!aliveRef.current) return { safetyBackup, imported: 0 };
+      setNotes(next.notes);
+      setThemes(next.themes);
+      setLastAnalyzedFingerprint('');
+      setLastAnalysis(null);
+      setNoteProfiles({});
+      setThemeSource('');
+      setThemeStatus('idle');
+      setImportStatus('ready');
+      return { safetyBackup, imported: payload.notes.length };
+    } catch (error) {
+      restoredImages.forEach((image) => {
+        try { removeStoredNoteImage(image); } catch (cleanupError) { console.warn('could not clean failed import image', cleanupError); }
+      });
+      if (aliveRef.current) setImportStatus('error');
+      throw error;
+    }
+  }, [notes, ready, themes]);
+
   return {
     notes: activeNotes,
     themes,
@@ -326,9 +366,12 @@ export function useNotes() {
     loadError,
     saveError,
     backupStatus,
+    importStatus,
     retryLoad: hydrate,
     clearSaveError: () => setSaveError(''),
     exportBackup,
+    previewImport,
+    importBackup,
     add,
     water,
     plant,
