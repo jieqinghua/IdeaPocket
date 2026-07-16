@@ -1,0 +1,21 @@
+# 应用构建只需要源码、资源、配置和依赖锁文件。
+node_modules/
+.expo/
+.git/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# 本地密钥绝不上传到 EAS；APK 运行时由用户在应用内填写 API Key。
+.env
+.env.*
+
+# 设计资料、原型依赖与演示输出不参与 React Native 应用构建。
+docs/
+reference/
+prototypes/
+outputs/
+测试演示/
+design-qa.md
+src/__tests__/

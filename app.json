@@ -13,6 +13,12 @@
       "backgroundColor": "#F7F8FC"
     },
     "backgroundColor": "#F7F8FC",
+    "extra": {
+      "eas": {
+        "projectId": "fc886f40-7011-43dc-b353-541d4cec9957"
+      }
+    },
+    "owner": "lenny889",
     "androidNavigationBar": {
       "backgroundColor": "#F7F8FC",
       "barStyle": "dark-content"
@@ -41,7 +47,8 @@
           "cameraPermission": "允许 IdeaPocket 使用相机，为笔记拍摄图片。"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ]
   }
 }

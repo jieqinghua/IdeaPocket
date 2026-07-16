@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, LayoutAnimation, PanResponder, Platform, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, UIManager, useWindowDimensions, View } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import { Directory } from 'expo-file-system';
 import { loadAIKey, saveAIKey } from './src/aiKeyStorage';
 import { setRuntimeAIKey } from './src/config.ai';
 import ApiKeyDialog from './src/components/ApiKeyDialog';
@@ -15,6 +16,7 @@ import ThemeDetailScreen from './src/screens/ThemeDetailScreen';
 import ThemesScreen from './src/screens/ThemesScreen';
 import { metrics, radius, spacing, theme, type } from './src/theme';
 import { useNotes } from './src/useNotes';
+import { readBackupFolder } from './src/backupFiles';
 
 const NOTE_INSERT_ANIMATION = {
   duration: 540,
@@ -126,6 +128,43 @@ export default function App() {
     } catch (error) {
       console.error('[backup:saf-v4:ui]', error?.message || error, error?.stack || '');
       Alert.alert('备份失败', error?.message || '无法写入本地备份文件，请稍后重试。');
+    }
+  };
+
+  const runImport = async (contents, mode, imageDirectory) => {
+    try {
+      const result = await store.importBackup(contents, mode, imageDirectory);
+      Alert.alert(
+        '笔记已导入',
+        `已${mode === 'merge' ? '合并' : '覆盖'}导入 ${result.imported} 条笔记。\n\n导入前的当前数据已自动备份到：\n${result.safetyBackup.directoryUri}`
+      );
+    } catch (error) {
+      console.error('[backup:import]', error?.message || error, error?.stack || '');
+      Alert.alert('导入失败', error?.message || '无法恢复备份，请稍后重试。');
+    }
+  };
+
+  const handleImportBackup = async () => {
+    if (store.importStatus === 'running') return;
+    try {
+      const directory = await Directory.pickDirectoryAsync();
+      if (!directory) return;
+      const { contents, imageDirectory } = await readBackupFolder(directory);
+      const preview = store.previewImport(contents);
+      const imageLine = preview.imageCount
+        ? `\n将同时恢复 ${preview.imageCount} 张图片。`
+        : '';
+      Alert.alert(
+        '确认导入',
+        `将从所选备份文件夹导入 ${preview.noteCount} 条笔记。${imageLine}\n\n请选择导入方式；开始前会自动备份当前数据。`,
+        [
+          { text: '取消', style: 'cancel' },
+          { text: '合并', onPress: () => runImport(contents, 'merge', imageDirectory) },
+          { text: '覆盖', style: 'destructive', onPress: () => runImport(contents, 'overwrite', imageDirectory) },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('无法读取备份', error?.message || '请选择完整的 IdeaPocket 备份文件夹。');
     }
   };
 
@@ -302,9 +341,11 @@ export default function App() {
               layoutMode={noteLayout}
               onToggleLayout={handleLayoutToggle}
               onExportBackup={handleExportBackup}
+              onImportBackup={handleImportBackup}
               onConfigureAIKey={openAIKeyDialog}
               aiKeyConfigured={Boolean(aiKey)}
               backupRunning={store.backupStatus === 'running'}
+              importRunning={store.importStatus === 'running'}
             />
             <View style={styles.body} {...homeTabPanResponder.panHandlers}>
               <View style={styles.tabSwipeViewport}>

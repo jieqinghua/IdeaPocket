@@ -23,9 +23,11 @@ export default function HomeHeader({
   layoutMode = 'list',
   onToggleLayout,
   onExportBackup,
+  onImportBackup,
   onConfigureAIKey,
   aiKeyConfigured = false,
   backupRunning = false,
+  importRunning = false,
 }) {
   const masonryActive = layoutMode === 'masonry';
   const menuButtonRef = useRef(null);
@@ -167,6 +169,21 @@ export default function HomeHeader({
             >
               <Ionicons name="download-outline" size={metrics.standardIcon} color={theme.ink} />
               <Text style={styles.menuItemText}>{backupRunning ? '正在导出…' : '导出笔记'}</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable
+              accessibilityRole="menuitem"
+              accessibilityState={{ disabled: importRunning }}
+              disabled={importRunning}
+              onPress={() => chooseMenuAction(onImportBackup)}
+              style={({ pressed }) => [
+                styles.menuItem,
+                importRunning && styles.iconButtonDisabled,
+                pressed && styles.tabPressed,
+              ]}
+            >
+              <Ionicons name="cloud-upload-outline" size={metrics.standardIcon} color={theme.ink} />
+              <Text style={styles.menuItemText}>{importRunning ? '正在导入…' : '导入笔记'}</Text>
             </Pressable>
             <View style={styles.menuDivider} />
             <Pressable

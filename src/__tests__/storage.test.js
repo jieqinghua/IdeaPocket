@@ -1,9 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadNotes, loadThemeState, saveNotes, saveThemeState } from '../storage';
+import { loadNotes, loadThemeState, restoreImportedData, saveNotes, saveThemeState } from '../storage';
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
+  multiSet: jest.fn(),
+  removeItem: jest.fn(),
 }));
 
 let warnSpy;
@@ -11,6 +13,8 @@ let warnSpy;
 beforeEach(() => {
   AsyncStorage.getItem.mockReset();
   AsyncStorage.setItem.mockReset();
+  AsyncStorage.multiSet.mockReset();
+  AsyncStorage.removeItem.mockReset();
   warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -22,7 +26,7 @@ test('读取已有笔记', async () => {
 });
 
 test('新安装时返回功能引导笔记，已保存的空列表不会重新加入', async () => {
-  AsyncStorage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce('[]');
+  AsyncStorage.getItem.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce('[]');
   const welcomeNotes = await loadNotes();
   await expect(loadNotes()).resolves.toEqual([]);
 
@@ -66,4 +70,16 @@ test('保存主题状态', async () => {
       noteProfiles: {},
     })
   );
+});
+
+test('导入恢复先写事务日志，再一起提交笔记和主题状态', async () => {
+  AsyncStorage.setItem.mockResolvedValue();
+  AsyncStorage.multiSet.mockResolvedValue();
+  AsyncStorage.removeItem.mockResolvedValue();
+  await restoreImportedData([{ id: 'n1', text: '恢复' }], { themes: [] });
+  expect(AsyncStorage.multiSet).toHaveBeenCalledWith([
+    ['ideapocket.notes.v1', JSON.stringify([{ id: 'n1', text: '恢复' }])],
+    ['ideapocket.themes.v1', expect.any(String)],
+  ]);
+  expect(AsyncStorage.removeItem).toHaveBeenCalledWith('ideapocket.restore-journal.v1');
 });
