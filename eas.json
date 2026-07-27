@@ -4,9 +4,32 @@
   },
   "build": {
     "preview": {
+      "channel": "staging",
       "distribution": "internal",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
     },
-    "production": {}
+    "staging": {
+      "channel": "staging",
+      "distribution": "internal",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "staging"
+    }
   }
 }

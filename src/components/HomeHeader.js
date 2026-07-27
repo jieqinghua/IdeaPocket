@@ -25,11 +25,23 @@ export default function HomeHeader({
   onExportBackup,
   onImportBackup,
   onConfigureAIKey,
+  onCheckUpdate,
+  updateState,
   aiKeyConfigured = false,
   backupRunning = false,
   importRunning = false,
 }) {
   const masonryActive = layoutMode === 'masonry';
+  const updateBusy = ['checking', 'downloading', 'preparing', 'restarting'].includes(updateState?.phase);
+  const updateLabel = (() => {
+    if (updateState?.phase === 'checking') return '正在检查更新…';
+    if (updateState?.phase === 'downloading') return `下载更新 ${Math.round(updateState?.progress || 0)}%`;
+    if (updateState?.phase === 'preparing') return '正在保护本地数据…';
+    if (updateState?.phase === 'restarting') return '正在重启更新…';
+    if (updateState?.phase === 'native-ready') return '更新已下载';
+    if (updateState?.phase === 'hot-ready') return '热更新已就绪';
+    return '检查更新';
+  })();
   const menuButtonRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuTop, setMenuTop] = useState(HOME_HEADER_HEIGHT);
@@ -193,6 +205,21 @@ export default function HomeHeader({
             >
               <Ionicons name="key-outline" size={metrics.standardIcon} color={theme.ink} />
               <Text style={styles.menuItemText}>{aiKeyConfigured ? '修改 API Key' : '配置 API Key'}</Text>
+            </Pressable>
+            <View style={styles.menuDivider} />
+            <Pressable
+              accessibilityRole="menuitem"
+              accessibilityState={{ disabled: updateBusy }}
+              disabled={updateBusy}
+              onPress={() => chooseMenuAction(onCheckUpdate)}
+              style={({ pressed }) => [
+                styles.menuItem,
+                updateBusy && styles.iconButtonDisabled,
+                pressed && styles.tabPressed,
+              ]}
+            >
+              <Ionicons name="cloud-download-outline" size={metrics.standardIcon} color={theme.ink} />
+              <Text style={styles.menuItemText}>{updateLabel}</Text>
             </Pressable>
           </View>
         </View>

@@ -136,12 +136,14 @@ export async function exportNotesBackup(notes, themes, options = {}) {
 
 export async function readBackupFolder(directory) {
   if (!directory?.list) throw new Error('无法读取所选备份文件夹。');
-  const jsonFiles = directory.list().filter((entry) => entry?.name?.toLowerCase?.().endsWith('.json'));
+  const entries = directory.list();
+  const jsonFiles = entries.filter((entry) => entry?.name?.toLowerCase?.().endsWith('.json'));
   if (jsonFiles.length !== 1) {
     throw new Error(jsonFiles.length ? '备份文件夹中只能包含一个 JSON 备份文件。' : '所选文件夹中没有 JSON 备份文件。');
   }
   return {
     contents: await jsonFiles[0].text(),
-    imageDirectory: new Directory(directory, 'images'),
+    // SAF content:// URI 不能总是通过父路径拼接可靠复原；保留系统枚举的真实目录对象。
+    imageDirectory: entries.find((entry) => entry?.name === 'images') || null,
   };
 }

@@ -93,8 +93,10 @@ export function restoreBackupImage(sourceDirectory, image, noteId) {
   if (!sourceName || sourceName !== sourceName.split('/').pop() || sourceName.includes('\\')) {
     throw new Error('备份图片文件名无效。');
   }
-  const source = new File(sourceDirectory, sourceName);
-  if (!source.exists) throw new Error(`备份中缺少图片：images/${sourceName}`);
+  if (!sourceDirectory?.list) throw new Error('备份中缺少 images 图片目录。');
+  // 使用 SAF 返回的实际文件 URI，避免 content:// 父目录路径拼接失效。
+  const source = sourceDirectory.list().find((entry) => entry?.name === sourceName);
+  if (!source?.exists) throw new Error(`备份中缺少图片：images/${sourceName}`);
   const directory = ensureImageDirectory();
   const fileName = makeImageFileName(noteId);
   const destination = new File(directory, fileName);

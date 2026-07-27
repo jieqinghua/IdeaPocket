@@ -32,3 +32,19 @@ test('一次失败会报告错误但不会阻塞后续保存', async () => {
   expect(errors).toEqual(['disk full']);
   expect(completed).toEqual([2]);
 });
+
+test('后续保存成功会报告成功，可清除上一轮失败状态', async () => {
+  const states = [];
+  const queue = createSerialQueue(
+    async (value) => {
+      if (value === 1) throw new Error('disk full');
+    },
+    () => states.push('failed'),
+    () => states.push('saved')
+  );
+
+  queue.enqueue(1);
+  queue.enqueue(2);
+  await queue.idle();
+  expect(states).toEqual(['failed', 'saved']);
+});

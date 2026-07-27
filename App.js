@@ -16,6 +16,7 @@ import ThemeDetailScreen from './src/screens/ThemeDetailScreen';
 import ThemesScreen from './src/screens/ThemesScreen';
 import { metrics, radius, spacing, theme, type } from './src/theme';
 import { useNotes } from './src/useNotes';
+import { useAppUpdates } from './src/hooks/useAppUpdates';
 import { readBackupFolder } from './src/backupFiles';
 
 const NOTE_INSERT_ANIMATION = {
@@ -31,6 +32,7 @@ const NOTE_INSERT_ANIMATION = {
 
 export default function App() {
   const store = useNotes();
+  const appUpdates = useAppUpdates(store);
   const { width: viewportWidth } = useWindowDimensions();
   const [tab, setTab] = useState('notes');
   const [noteLayout, setNoteLayout] = useState('masonry');
@@ -343,6 +345,8 @@ export default function App() {
               onExportBackup={handleExportBackup}
               onImportBackup={handleImportBackup}
               onConfigureAIKey={openAIKeyDialog}
+              onCheckUpdate={appUpdates.checkForUpdates}
+              updateState={appUpdates.state}
               aiKeyConfigured={Boolean(aiKey)}
               backupRunning={store.backupStatus === 'running'}
               importRunning={store.importStatus === 'running'}
