@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Animated, KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useRecorder } from '../hooks/useRecorder';
 import { transcribe } from '../lib/stt';
@@ -33,8 +33,8 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
   const pendingVoiceNoteRef = useRef('');
 
   useEffect(() => {
-    onOverlayChange?.(recording || busy || closing);
-  }, [busy, closing, onOverlayChange, recording]);
+    onOverlayChange?.(composerOpen || recording || busy || closing);
+  }, [busy, closing, composerOpen, onOverlayChange, recording]);
 
   useEffect(() => () => {
     clearTimeout(holdTimer.current);
@@ -43,14 +43,23 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
 
   const openComposer = (text, source) => {
     sourceRef.current = source;
-    setComposerText(text);
+    // 普通文字入口重开时保留关闭前的草稿；语音失败等预填场景仍以传入内容为准。
+    setComposerText((current) => (source === 'text' && !text ? current : text));
     setComposerOpen(true);
   };
   const closeComposer = () => {
+    Keyboard.dismiss();
     setComposerOpen(false);
-    setComposerText('');
     setVoiceError('');
     setRetryAudioUri(null);
+  };
+
+  const submitComposer = (text) => {
+    setVoiceError('');
+    setRetryAudioUri(null);
+    setComposerText('');
+    setComposerOpen(false);
+    onSubmit(text, sourceRef.current);
   };
 
   const transcribeAudio = async (uri) => {
@@ -168,22 +177,25 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
       {composerOpen && (
         <KeyboardAvoidingView
           style={styles.composerWrap}
-          behavior="padding"
+          // 当前 Android 运行时并未可靠缩放根视图。height 会让输入条紧贴键盘，且收起时恢复原始高度，
+          // 不使用 padding，以免再留下上一帧的底部内边距。
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={0}
         >
-          <Pressable style={styles.backdrop} onPress={closeComposer} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="关闭文字输入并保留草稿"
+            style={styles.backdrop}
+            onPress={closeComposer}
+          />
           <CaptureBar
             initialText={composerText}
             autoFocus
-            onClose={closeComposer}
+            onTextChange={setComposerText}
             notice={voiceError}
             retrying={busy}
             onRetry={retryAudioUri ? () => transcribeAudio(retryAudioUri) : undefined}
-            onSubmit={(t) => {
-              setVoiceError('');
-              setRetryAudioUri(null);
-              onSubmit(t, sourceRef.current);
-            }}
+            onSubmit={submitComposer}
           />
         </KeyboardAvoidingView>
       )}
@@ -260,7 +272,9 @@ const styles = StyleSheet.create({
   composerWrap: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'flex-end',
-    zIndex: 40,
+    // HomeHeader 在 Android 上有 elevation，必须提升遮罩层才能覆盖顶部 tabs。
+    zIndex: 50,
+    elevation: 50,
   },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.12)' },
 });

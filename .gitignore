@@ -1,14 +1,34 @@
+# 依赖、缓存和生成目录
 node_modules/
 .expo/
+.npm/
+.npm-cache/
+coverage/
 dist/
 web-build/
+/android/
+/ios/
 *.log
+
+# 系统和编辑器文件
 .DS_Store
+.idea/
+.vscode/
 .claude/settings.local.json
 
-# 本地敏感配置（勿入库）
+# 本地敏感配置和签名材料
 .env
 .env.*
+*.jks
+*.keystore
 
-# 设计过程输出，不属于应用源码发布内容
+# 本地文档、设计资料、参考图和构建产物
+docs/
 outputs/
+prototypes/
+reference/
+reference-image/
+测试演示/
+design-qa.md
+*.apk
+*.aab

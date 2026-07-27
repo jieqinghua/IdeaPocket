@@ -30,6 +30,7 @@ import {
 } from './themeActions';
 import { exportNotesBackup } from './backupFiles';
 import { buildImportState, parseBackupJson, previewBackup } from './lib/backupImport';
+import { prepareUpdateSafety } from './lib/updateSafety';
 
 export function useNotes() {
   const [notes, setNotes] = useState([]);
@@ -49,6 +50,8 @@ export function useNotes() {
   const aliveRef = useRef(true);
   const saveQueueRef = useRef(null);
   const themeSaveQueueRef = useRef(null);
+  const noteSaveFailureRef = useRef(null);
+  const themeSaveFailureRef = useRef(null);
   const themeControllerRef = useRef(null);
   const activeNotes = useMemo(() => notes.filter((note) => !note.deletedAt), [notes]);
   const activeNotesRef = useRef(activeNotes);
@@ -59,15 +62,29 @@ export function useNotes() {
   );
 
   if (!saveQueueRef.current) {
-    saveQueueRef.current = createSerialQueue(saveNotes, () => {
-      if (aliveRef.current) setSaveError('保存失败，最近的改动可能尚未落盘');
-    });
+    saveQueueRef.current = createSerialQueue(
+      saveNotes,
+      (error) => {
+        noteSaveFailureRef.current = error;
+        if (aliveRef.current) setSaveError('保存失败，最近的改动可能尚未落盘');
+      },
+      () => {
+        noteSaveFailureRef.current = null;
+      }
+    );
   }
 
   if (!themeSaveQueueRef.current) {
-    themeSaveQueueRef.current = createSerialQueue(saveThemeState, () => {
-      if (aliveRef.current) setSaveError('保存失败，最近的主题改动可能尚未落盘');
-    });
+    themeSaveQueueRef.current = createSerialQueue(
+      saveThemeState,
+      (error) => {
+        themeSaveFailureRef.current = error;
+        if (aliveRef.current) setSaveError('保存失败，最近的主题改动可能尚未落盘');
+      },
+      () => {
+        themeSaveFailureRef.current = null;
+      }
+    );
   }
 
   const hydrate = useCallback(async () => {
@@ -353,6 +370,16 @@ export function useNotes() {
     }
   }, [notes, ready, themes]);
 
+  const prepareForUpdate = useCallback(async () => {
+    return prepareUpdateSafety({
+      ready,
+      noteQueue: saveQueueRef.current,
+      themeQueue: themeSaveQueueRef.current,
+      getSaveFailure: () => noteSaveFailureRef.current || themeSaveFailureRef.current,
+      createBackup: () => exportNotesBackup(notes, themes, { preferAppDirectory: true }),
+    });
+  }, [notes, ready, themes]);
+
   return {
     notes: activeNotes,
     themes,
@@ -372,6 +399,7 @@ export function useNotes() {
     exportBackup,
     previewImport,
     importBackup,
+    prepareForUpdate,
     add,
     water,
     plant,

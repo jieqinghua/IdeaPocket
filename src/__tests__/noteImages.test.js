@@ -33,6 +33,7 @@ jest.mock('expo-file-system', () => {
   }
   class File {
     constructor(...parts) { this.uri = toUri(parts); }
+    get name() { return this.uri.split('/').pop(); }
     get exists() { return mockFiles.has(this.uri); }
     copy(destination) { mockFiles.add(destination.uri); }
     bytesSync() { return new Uint8Array([1, 2, 3]); }
@@ -49,7 +50,7 @@ const {
   restoreBackupImage,
   storeNoteImage,
 } = require('../noteImages');
-const { Directory } = require('expo-file-system');
+const { Directory, File } = require('expo-file-system');
 
 beforeEach(() => {
   mockFiles.clear();
@@ -105,8 +106,10 @@ test('备份图片通过授权目录创建文件并写入内容', () => {
 });
 
 test('从备份 images 目录恢复图片到应用私有目录', () => {
-  const sourceDirectory = new Directory('content://backup/images');
   mockFiles.add('content://backup/images/n1.jpg');
+  const sourceDirectory = {
+    list: () => [new File('content://backup/images/n1.jpg')],
+  };
 
   const image = restoreBackupImage(
     sourceDirectory,
