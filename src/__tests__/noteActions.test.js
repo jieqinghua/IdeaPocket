@@ -102,7 +102,7 @@ test('欢迎笔记用于首次安装，并简要介绍核心功能', () => {
   const notes = createWelcomeNotes(1000);
   expect(notes).toHaveLength(4);
   expect(notes.map((note) => note.text).join('\n')).toMatch(/麦克风/);
-  expect(notes.map((note) => note.text).join('\n')).toMatch(/AI 整理/);
+  expect(notes.map((note) => note.text).join('\n')).toMatch(/AI 润色/);
   expect(notes.map((note) => note.text).join('\n')).toMatch(/主题/);
   expect(notes.every((note) => note.welcome && !note.demo)).toBe(true);
 });

@@ -94,7 +94,7 @@ export default function AiTextTransform({
       <Text style={styles.text}>{sourceText}</Text>
       <Animated.View
         accessibilityLiveRegion={phase === AI_TEXT_PHASE.PROCESSING ? 'polite' : 'none'}
-        accessibilityLabel={phase === AI_TEXT_PHASE.PROCESSING ? 'AI 正在润色笔记' : undefined}
+        accessibilityLabel={phase === AI_TEXT_PHASE.PROCESSING ? 'AI 正在轻整理笔记' : undefined}
         pointerEvents="none"
         style={[styles.overlay, { opacity: overlayOpacity }]}
       >

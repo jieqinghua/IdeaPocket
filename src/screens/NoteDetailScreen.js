@@ -27,7 +27,7 @@ import {
 import AiPolishCandidateCard from '../components/AiPolishCandidateCard';
 import AiTextTransform from '../components/AiTextTransform';
 import DetailPageHeader from '../components/DetailPageHeader';
-import { tidy } from '../lib/aiTidy';
+import { TIDY_STATUS, tidy } from '../lib/aiTidy';
 import { formatNoteDate, hasAiTidy } from '../presentation';
 import { metrics, radius, shadow, spacing, theme, type } from '../theme';
 
@@ -264,15 +264,19 @@ export default function NoteDetailScreen({
     setAiNotice('');
     dispatchAiTransition({ type: 'BEGIN', sourceText: source });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    AccessibilityInfo.announceForAccessibility('AI 开始润色笔记');
+    AccessibilityInfo.announceForAccessibility('AI 开始轻整理笔记');
     if (minimumAiTimerRef.current) clearTimeout(minimumAiTimerRef.current);
     minimumAiTimerRef.current = setTimeout(() => {
       dispatchAiTransition({ type: 'MINIMUM_ELAPSED' });
     }, reduceMotion ? 120 : MIN_AI_DISPLAY_MS);
     try {
-      const { text } = await tidy(source, { signal: controller.signal });
+      const { text, status } = await tidy(source, { signal: controller.signal });
       const output = (text || '').trim();
-      dispatchAiTransition({ type: 'RESOLVED', resultText: output || source });
+      dispatchAiTransition({
+        type: 'RESOLVED',
+        resultText: output || source,
+        resultStatus: status,
+      });
     } catch (error) {
       if (error?.code === 'aborted') return;
       const message = error?.message || '润色失败，请稍后重试';
@@ -287,19 +291,25 @@ export default function NoteDetailScreen({
   const handleRevealComplete = useCallback(() => {
     const source = aiTransition.sourceText.trim();
     const result = aiTransition.resultText.trim() || source;
+    const resultStatus = aiTransition.resultStatus;
     dispatchAiTransition({ type: 'REVEALED' });
     setIsEditing(false);
-    if (result === source) {
-      setAiNotice('内容已经很清楚，无需替换');
+    if (resultStatus === TIDY_STATUS.REJECTED) {
+      setAiNotice('AI 输出未通过安全检查，已保留原文');
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
       noticeTimerRef.current = setTimeout(() => setAiNotice(''), 2400);
-      AccessibilityInfo.announceForAccessibility('内容已经很清楚，无需替换');
+      AccessibilityInfo.announceForAccessibility('AI 润色输出未通过安全检查，已保留原文');
+    } else if (resultStatus === TIDY_STATUS.UNCHANGED || result === source) {
+      setAiNotice('内容已经很清楚，无需整理');
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = setTimeout(() => setAiNotice(''), 2400);
+      AccessibilityInfo.announceForAccessibility('内容已经很清楚，无需整理');
     } else {
       setAiCandidate({ source, result });
-      AccessibilityInfo.announceForAccessibility('AI 润色完成，请确认取消或替换原文');
+      AccessibilityInfo.announceForAccessibility('AI 润色完成，请确认保留原文或使用整理版');
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  }, [aiTransition.resultText, aiTransition.sourceText]);
+  }, [aiTransition.resultStatus, aiTransition.resultText, aiTransition.sourceText]);
 
   const handleRecoveryComplete = useCallback(() => {
     dispatchAiTransition({ type: 'RECOVERED' });

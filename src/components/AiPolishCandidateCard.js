@@ -58,19 +58,19 @@ export default function AiPolishCandidateCard({
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="取消 AI 润色结果"
+              accessibilityLabel="保留 AI 润色前的原文"
               onPress={onCancel}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
             >
-              <Text style={styles.secondaryText}>取消</Text>
+              <Text style={styles.secondaryText}>保留原文</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="替换原文为 AI 润色结果"
+              accessibilityLabel="使用 AI 润色整理版"
               onPress={onConfirm}
               style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryText}>替换原文</Text>
+              <Text style={styles.primaryText}>使用整理版</Text>
             </Pressable>
           </View>
         </View>

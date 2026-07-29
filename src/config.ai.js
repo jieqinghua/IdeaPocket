@@ -9,7 +9,7 @@ export const AI_CONFIG = {
   llmBaseURL:
     process.env.EXPO_PUBLIC_DASHSCOPE_BASE_URL ||
     'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  llmModel: process.env.EXPO_PUBLIC_DASHSCOPE_LLM_MODEL || 'qwen-flash',
+  llmModel: process.env.EXPO_PUBLIC_DASHSCOPE_LLM_MODEL || 'qwen-flash-2025-07-28',
   asrModel: process.env.EXPO_PUBLIC_DASHSCOPE_ASR_MODEL || 'qwen3-asr-flash',
 };
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "IdeaPocket",
     "slug": "ideapocket",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -32,6 +32,11 @@
       "barStyle": "dark-content"
     },
     "android": {
+      "icon": "./src/assets/icons/app-icon-android.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/icons/app-icon-adaptive-foreground.png",
+        "backgroundColor": "#2F6FED"
+      },
       "package": "com.ideapocket.app",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
