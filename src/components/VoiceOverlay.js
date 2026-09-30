@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
-import { shadow, theme, type } from '../theme';
+import { shadow, type, useAppTheme } from '../theme';
 import {
   appendWaveformSample,
   meteringToAmplitude,
@@ -14,6 +14,7 @@ function fmt(ms) {
 }
 
 function Waveform({ samples, canceling }) {
+  const theme = useAppTheme();
   const color = canceling ? theme.wilting : theme.brand;
   const width = 300;
   const height = 96;
@@ -51,6 +52,8 @@ export default function VoiceOverlay({
   canceling,
   onHidden,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const [samples, setSamples] = useState(() => Array(WAVEFORM_SAMPLE_COUNT).fill(0));
   const [rendered, setRendered] = useState(false);
   const visiblePhaseRef = useRef(phase);
@@ -133,7 +136,7 @@ export default function VoiceOverlay({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: theme.overlaySoft,

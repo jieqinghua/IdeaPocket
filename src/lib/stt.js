@@ -1,6 +1,6 @@
 // 百炼 Qwen3-ASR-Flash：本地录音转 Base64 Data URL 后走 OpenAI 兼容接口。
 import { File } from 'expo-file-system';
-import { AI_CONFIG, hasAIKey } from '../config.ai';
+import { DASHSCOPE_ASR_CONFIG, hasDashscopeKey } from '../config.ai';
 import { DEFAULT_TIMEOUT_MS, fetchWithTimeout } from './http';
 
 const MAX_BASE64_BYTES = 10 * 1024 * 1024;
@@ -63,9 +63,9 @@ function errorForStatus(status) {
 export async function transcribeDataUrl(
   dataUrl,
   {
-    apiKey = AI_CONFIG.apiKey,
-    baseURL = AI_CONFIG.llmBaseURL,
-    model = AI_CONFIG.asrModel,
+    apiKey = DASHSCOPE_ASR_CONFIG.apiKey,
+    baseURL = DASHSCOPE_ASR_CONFIG.baseURL,
+    model = DASHSCOPE_ASR_CONFIG.model,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     fetchImpl = fetch,
   } = {}
@@ -125,7 +125,7 @@ export async function transcribeDataUrl(
 }
 
 export async function transcribe(audioUri, options = {}) {
-  if (!hasAIKey() && !options.apiKey) {
+  if (!hasDashscopeKey() && !options.apiKey) {
     throw new TranscriptionError('missing_key', '尚未配置百炼 API key，可先改用打字记录');
   }
   const dataUrl = await audioUriToDataUrl(audioUri, options.fileFactory);

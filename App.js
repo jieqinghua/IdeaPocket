@@ -2,19 +2,25 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { Alert, Animated, BackHandler, LayoutAnimation, PanResponder, Platform, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, UIManager, useWindowDimensions, View } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { Directory } from 'expo-file-system';
-import { loadAIKey, saveAIKey } from './src/aiKeyStorage';
-import { setRuntimeAIKey } from './src/config.ai';
-import ApiKeyDialog from './src/components/ApiKeyDialog';
+import * as NavigationBar from 'expo-navigation-bar';
+import {
+  loadDashscopeAIKey,
+  loadDeepSeekAIKey,
+  saveDashscopeAIKey,
+  saveDeepSeekAIKey,
+} from './src/aiKeyStorage';
+import { setRuntimeDashscopeKey, setRuntimeDeepSeekKey } from './src/config.ai';
 import CaptureFab from './src/components/CaptureFab';
 import HomeHeader, { HOME_HEADER_HEIGHT } from './src/components/HomeHeader';
 import { detailRouteReducer, INITIAL_DETAIL_ROUTE } from './src/detailRoutes';
 import { buildThemeCards } from './src/presentation';
 import { resolveHomeTabSwipe, shouldClaimHomeTabSwipe } from './src/homeTabSwipe';
 import NoteDetailScreen from './src/screens/NoteDetailScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import StreamScreen from './src/screens/StreamScreen';
 import ThemeDetailScreen from './src/screens/ThemeDetailScreen';
 import ThemesScreen from './src/screens/ThemesScreen';
-import { metrics, radius, spacing, theme, type } from './src/theme';
+import { metrics, radius, spacing, type, useAppTheme } from './src/theme';
 import { useNotes } from './src/useNotes';
 import { useAppUpdates } from './src/hooks/useAppUpdates';
 import { readBackupFolder } from './src/backupFiles';
@@ -31,6 +37,8 @@ const NOTE_INSERT_ANIMATION = {
 };
 
 export default function App() {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const store = useNotes();
   const appUpdates = useAppUpdates(store);
   const { width: viewportWidth } = useWindowDimensions();
@@ -41,12 +49,10 @@ export default function App() {
   const [detailRoute, dispatchDetail] = useReducer(detailRouteReducer, INITIAL_DETAIL_ROUTE);
   const [voiceOverlayActive, setVoiceOverlayActive] = useState(false);
   const [tabSwipeActive, setTabSwipeActive] = useState(false);
-  const [aiKey, setAIKey] = useState('');
-  const [aiKeyDraft, setAIKeyDraft] = useState('');
-  const [aiKeyDialogOpen, setAIKeyDialogOpen] = useState(false);
-  const [aiKeySaving, setAIKeySaving] = useState(false);
-  const [aiKeyError, setAIKeyError] = useState('');
-  const [aiKeyStorageError, setAIKeyStorageError] = useState('');
+  const [deepSeekKey, setDeepSeekKey] = useState('');
+  const [dashscopeKey, setDashscopeKey] = useState('');
+  const [deepSeekKeyStorageError, setDeepSeekKeyStorageError] = useState('');
+  const [dashscopeKeyStorageError, setDashscopeKeyStorageError] = useState('');
   const homeScrollY = useRef(new Animated.Value(0)).current;
   const homeTabSwipeX = useRef(new Animated.Value(0)).current;
   const homeScrollOffsetsRef = useRef({
@@ -70,7 +76,7 @@ export default function App() {
     [homeScrollY, tab]
   );
   const themeCards = useMemo(
-    () => buildThemeCards(store.themes || [], store.notes || []),
+    () => buildThemeCards(store.themes || [], store.notes || [], { includeHidden: true }),
     [store.notes, store.themes]
   );
   const selectedNote = detailRoute?.type === 'note'
@@ -87,19 +93,37 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    NavigationBar.setStyle(theme.mode);
+  }, [theme]);
+
+  useEffect(() => {
     let active = true;
-    loadAIKey()
+    loadDeepSeekAIKey()
       .then((storedKey) => {
         if (!active) return;
-        setRuntimeAIKey(storedKey);
-        setAIKey(storedKey);
-        setAIKeyStorageError('');
+        setRuntimeDeepSeekKey(storedKey);
+        setDeepSeekKey(storedKey);
+        setDeepSeekKeyStorageError('');
       })
       .catch((error) => {
         if (!active) return;
-        setRuntimeAIKey('');
-        setAIKeyStorageError(error?.message || '读取 API Key 失败');
-        console.warn('load secure AI key failed', error);
+        setRuntimeDeepSeekKey('');
+        setDeepSeekKeyStorageError(error?.message || '读取 DeepSeek API Key 失败');
+        console.warn('load secure DeepSeek key failed', error);
+      });
+    loadDashscopeAIKey()
+      .then((storedKey) => {
+        if (!active) return;
+        setRuntimeDashscopeKey(storedKey);
+        setDashscopeKey(storedKey);
+        setDashscopeKeyStorageError('');
+      })
+      .catch((error) => {
+        if (!active) return;
+        setRuntimeDashscopeKey('');
+        setDashscopeKeyStorageError(error?.message || '读取百炼 API Key 失败');
+        console.warn('load secure DashScope key failed', error);
       });
     return () => { active = false; };
   }, []);
@@ -138,7 +162,7 @@ export default function App() {
       const result = await store.importBackup(contents, mode, imageDirectory);
       Alert.alert(
         '笔记已导入',
-        `已${mode === 'merge' ? '合并' : '覆盖'}导入 ${result.imported} 条笔记。\n\n导入前的当前数据已自动备份到：\n${result.safetyBackup.directoryUri}`
+        `已${mode === 'merge' ? '合并' : '覆盖'}导入 ${result.imported} 条笔记，恢复后共有 ${result.themes} 个主题。\n\n导入前的当前数据已自动备份到：\n${result.safetyBackup.directoryUri}`
       );
     } catch (error) {
       console.error('[backup:import]', error?.message || error, error?.stack || '');
@@ -158,7 +182,7 @@ export default function App() {
         : '';
       Alert.alert(
         '确认导入',
-        `将从所选备份文件夹导入 ${preview.noteCount} 条笔记。${imageLine}\n\n请选择导入方式；开始前会自动备份当前数据。`,
+        `将从所选备份文件夹导入 ${preview.noteCount} 条笔记和 ${preview.themeCount} 个主题。${imageLine}\n\n请选择导入方式；开始前会自动备份当前数据。`,
         [
           { text: '取消', style: 'cancel' },
           { text: '合并', onPress: () => runImport(contents, 'merge', imageDirectory) },
@@ -170,36 +194,18 @@ export default function App() {
     }
   };
 
-  const openAIKeyDialog = () => {
-    setAIKeyDraft(aiKey);
-    setAIKeyError(aiKeyStorageError);
-    setAIKeyDialogOpen(true);
+  const saveDeepSeekKey = async (apiKey) => {
+    const storedKey = await saveDeepSeekAIKey(apiKey);
+    setRuntimeDeepSeekKey(storedKey);
+    setDeepSeekKey(storedKey);
+    setDeepSeekKeyStorageError('');
   };
 
-  const closeAIKeyDialog = () => {
-    if (aiKeySaving) return;
-    setAIKeyDialogOpen(false);
-    setAIKeyDraft('');
-    setAIKeyError('');
-  };
-
-  const confirmAIKey = async () => {
-    if (aiKeySaving) return;
-    setAIKeySaving(true);
-    setAIKeyError('');
-    try {
-      const storedKey = await saveAIKey(aiKeyDraft);
-      setRuntimeAIKey(storedKey);
-      setAIKey(storedKey);
-      setAIKeyStorageError('');
-      setAIKeyDialogOpen(false);
-      setAIKeyDraft('');
-      Alert.alert('API Key 已保存', '语音识别和笔记主题整理将使用此 Key。');
-    } catch (error) {
-      setAIKeyError(error?.message || '保存 API Key 失败，请重试');
-    } finally {
-      setAIKeySaving(false);
-    }
+  const saveDashscopeKey = async (apiKey) => {
+    const storedKey = await saveDashscopeAIKey(apiKey);
+    setRuntimeDashscopeKey(storedKey);
+    setDashscopeKey(storedKey);
+    setDashscopeKeyStorageError('');
   };
 
   const handleAddNote = (text, source) => {
@@ -285,7 +291,7 @@ export default function App() {
   if (!store.ready) {
     return (
       <SafeAreaView style={styles.root}>
-        <ExpoStatusBar style="dark" backgroundColor={theme.bg} translucent={false} />
+        <ExpoStatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} backgroundColor={theme.bg} translucent={false} />
         <View style={styles.gate}>
           <Text style={styles.gateBrand}>IDEA POCKET</Text>
           <Text style={styles.gateText}>{store.loadError || '正在翻开你的口袋…'}</Text>
@@ -302,7 +308,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.root}>
       <ExpoStatusBar
-        style={voiceOverlayActive ? 'light' : 'dark'}
+        style={voiceOverlayActive || theme.mode === 'dark' ? 'light' : 'dark'}
         backgroundColor={voiceOverlayActive ? theme.overlay : theme.bg}
         translucent={false}
       />
@@ -311,7 +317,17 @@ export default function App() {
           <Text style={styles.saveWarningText}>{store.saveError}　✕</Text>
         </Pressable>
       )}
-      {selectedNote ? (
+      {detailRoute?.type === 'settings' ? (
+        <SettingsScreen
+          deepSeekKey={deepSeekKey}
+          dashscopeKey={dashscopeKey}
+          deepSeekLoadError={deepSeekKeyStorageError}
+          dashscopeLoadError={dashscopeKeyStorageError}
+          onBack={() => dispatchDetail({ type: 'CLOSE' })}
+          onSaveDeepSeek={saveDeepSeekKey}
+          onSaveDashscope={saveDashscopeKey}
+        />
+      ) : selectedNote ? (
         <NoteDetailScreen
           note={selectedNote}
           focusOnOpen={detailRoute.focus}
@@ -325,6 +341,7 @@ export default function App() {
       ) : selectedTheme ? (
         <ThemeDetailScreen
           theme={selectedTheme}
+          store={store}
           onBack={() => dispatchDetail({ type: 'CLOSE' })}
           onRename={store.updateThemeTitle}
           onRemoveNote={store.removeThemeNote}
@@ -344,10 +361,9 @@ export default function App() {
               onToggleLayout={handleLayoutToggle}
               onExportBackup={handleExportBackup}
               onImportBackup={handleImportBackup}
-              onConfigureAIKey={openAIKeyDialog}
+              onOpenSettings={() => dispatchDetail({ type: 'OPEN_SETTINGS' })}
               onCheckUpdate={appUpdates.checkForUpdates}
               updateState={appUpdates.state}
-              aiKeyConfigured={Boolean(aiKey)}
               backupRunning={store.backupStatus === 'running'}
               importRunning={store.importStatus === 'running'}
             />
@@ -400,23 +416,11 @@ export default function App() {
           )}
         </>
       )}
-      <ApiKeyDialog
-        visible={aiKeyDialogOpen}
-        value={aiKeyDraft}
-        saving={aiKeySaving}
-        error={aiKeyError}
-        onChange={(value) => {
-          setAIKeyDraft(value);
-          if (aiKeyError) setAIKeyError('');
-        }}
-        onCancel={closeAIKeyDialog}
-        onConfirm={confirmAIKey}
-      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.bg,

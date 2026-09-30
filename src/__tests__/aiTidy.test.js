@@ -14,6 +14,15 @@ const remoteResponse = (payload) => ({
   }),
 });
 
+const remoteResponseSequence = (...payloads) => {
+  let index = 0;
+  return async () => {
+    const payload = payloads[Math.min(index, payloads.length - 1)];
+    index += 1;
+    return remoteResponse(payload);
+  };
+};
+
 test('本地整理只去除分句边界的常见口水词', () => {
   expect(localTidy('嗯 那个那个这是想法。然后呢继续。')).toBe('这是想法。\n继续。');
   expect(localTidy('这个方案的问题是这个入口太深。')).toBe('这个方案的问题是这个入口太深。');
@@ -71,21 +80,21 @@ test('候选校验允许轻微语病、标点和语序优化', () => {
   });
 });
 
-test('候选校验只硬性保护关键事实并拦截明显扩写', () => {
-  const source = '周五确认 2.0 版本是不是可能继续用，详情见 https://example.com。';
-  [
-    '周五确认 3.0 版本是不是可能继续用，详情见 https://example.com。',
-    '周五确认 2.0 版本是继续用，详情见 https://example.com。',
-    '周五确认 2.0 版本是不是可能继续用，详情见 https://other.example.com。',
-  ].forEach((candidate) => {
-    expect(validateTidyCandidate(
-      source,
-      candidate,
-      [{ type: 'punctuation', before: source, after: candidate }]
-    )).toMatchObject({
-      status: TIDY_STATUS.REJECTED,
-      text: source,
-    });
+test('候选校验只判断为空、相同、明显变长和明显变短', () => {
+  expect(validateTidyCandidate('原文内容', '')).toMatchObject({
+    status: TIDY_STATUS.REJECTED,
+    rejectionReason: 'empty',
+  });
+  expect(validateTidyCandidate('原文内容', '原文内容')).toMatchObject({
+    status: TIDY_STATUS.UNCHANGED,
+  });
+  expect(validateTidyCandidate(
+    '预算可能是 5 万元。',
+    '预算确定是 8 万元。',
+    []
+  )).toMatchObject({
+    status: TIDY_STATUS.CHANGED,
+    text: '预算确定是 8 万元。',
   });
 
   expect(validateTidyCandidate(
@@ -96,17 +105,27 @@ test('候选校验只硬性保护关键事实并拦截明显扩写', () => {
     status: TIDY_STATUS.REJECTED,
     rejectionReason: 'excessive_expansion',
   });
+  expect(validateTidyCandidate(
+    '这是一个需要完整保留全部信息的笔记内容，今天需要完成设计并检查结果。',
+    '完成设计。',
+    []
+  )).toMatchObject({
+    status: TIDY_STATUS.REJECTED,
+    rejectionReason: 'excessive_reduction',
+  });
 });
 
 test('远程整理发送忠实润色请求并解析轻度优化候选', async () => {
   let requestBody;
+  let requestUrl;
   const payload = {
     revised_text: '我大概下周三去上海，可能住两晚。',
     changes: [{ type: 'punctuation', before: '上海可能', after: '上海，可能' }],
   };
   const result = await tidyRemote('我大概下周三去上海可能住两晚。', {
     apiKey: 'test-key',
-    fetchImpl: async (_url, options) => {
+    fetchImpl: async (url, options) => {
+      requestUrl = url;
       requestBody = JSON.parse(options.body);
       return remoteResponse(payload);
     },
@@ -119,12 +138,12 @@ test('远程整理发送忠实润色请求并解析轻度优化候选', async ()
     changes: payload.changes,
   });
   expect(requestBody).toMatchObject({
-    model: 'qwen-flash-2025-07-28',
+    model: 'deepseek-flash',
     temperature: 0,
-    seed: 1234,
-    enable_thinking: false,
+    thinking: { type: 'disabled' },
     response_format: { type: 'json_object' },
   });
+  expect(requestUrl).toBe('https://api.deepseek.com/chat/completions');
   expect(requestBody.messages[0].content).toContain('不改变原意');
   expect(requestBody.messages[0].content).toContain('不增加额外信息');
   expect(requestBody.messages[0].content).toContain('第一/第二/第三');
@@ -143,11 +162,64 @@ test('远程整理在模型漏排版时兜底转换明显顺序结构', async ()
   });
 });
 
-test('远程整理把不变文本识别为 unchanged', async () => {
-  const source = '我大概下周三去上海，可能住两晚。';
+test('远程结果明显变长时自动进行一次二次检查', async () => {
+  const source = '明早十点，南门，带合同。';
+  const firstCandidate =
+    '明早十点在公司南门与客户见面，需要提前联系客户确认会议议程，并准备完整合同和全部项目材料。';
+  const reviewedCandidate = '明早十点，在南门见，带合同。';
+  const requestBodies = [];
+  const responses = remoteResponseSequence(
+    { revised_text: firstCandidate, changes: [] },
+    { revised_text: reviewedCandidate, changes: [] }
+  );
   const result = await tidyRemote(source, {
     apiKey: 'test-key',
-    fetchImpl: async () => remoteResponse({ revised_text: source, changes: [] }),
+    fetchImpl: async (_url, options) => {
+      requestBodies.push(JSON.parse(options.body));
+      return responses();
+    },
+  });
+
+  expect(result).toMatchObject({
+    text: reviewedCandidate,
+    status: TIDY_STATUS.CHANGED,
+    reviewed: true,
+  });
+  expect(requestBodies).toHaveLength(2);
+  expect(requestBodies[1].messages[1].content).toContain('二次检查');
+  expect(requestBodies[1].messages[1].content).toContain('明显变长');
+  expect(requestBodies[1].messages[1].content).toContain(firstCandidate);
+});
+
+test('二次检查结果仍明显变长时也交给用户确认', async () => {
+  const source = '明早十点，南门，带合同。';
+  const firstCandidate =
+    '明早十点在公司南门与客户见面，需要提前联系客户确认会议议程，并准备完整合同和全部项目材料。';
+  const reviewedCandidate =
+    '明早十点在南门与客户见面，需要提前确认会议议程，并准备合同和相关项目材料。';
+  const result = await tidyRemote(source, {
+    apiKey: 'test-key',
+    fetchImpl: remoteResponseSequence(
+      { revised_text: firstCandidate, changes: [] },
+      { revised_text: reviewedCandidate, changes: [] }
+    ),
+  });
+  expect(result).toMatchObject({
+    text: reviewedCandidate,
+    status: TIDY_STATUS.CHANGED,
+    reviewed: true,
+  });
+});
+
+test('远程整理把不变文本识别为 unchanged', async () => {
+  const source = '我大概下周三去上海，可能住两晚。';
+  let requestCount = 0;
+  const result = await tidyRemote(source, {
+    apiKey: 'test-key',
+    fetchImpl: async () => {
+      requestCount += 1;
+      return remoteResponse({ revised_text: source, changes: [] });
+    },
   });
   expect(result).toEqual({
     text: source,
@@ -155,39 +227,62 @@ test('远程整理把不变文本识别为 unchanged', async () => {
     status: TIDY_STATUS.UNCHANGED,
     changes: [],
   });
+  expect(requestCount).toBe(1);
 });
 
-test('远程整理允许省略修改记录，但无效 JSON 或正文缺失时 rejected', async () => {
+test('首次为空或 JSON 无效时二次检查后返回有效候选', async () => {
   const source = '原文';
-  const invalidJson = await tidyRemote(source, {
+  const adjusted = '原文。';
+  const fromEmpty = await tidyRemote(source, {
     apiKey: 'test-key',
-    fetchImpl: async () => remoteResponse('不是 JSON'),
+    fetchImpl: remoteResponseSequence(
+      { revised_text: '', changes: [] },
+      { revised_text: adjusted }
+    ),
   });
-  expect(invalidJson).toMatchObject({
-    text: source,
-    status: TIDY_STATUS.REJECTED,
-    rejectionReason: 'invalid_json',
+  expect(fromEmpty).toMatchObject({
+    text: adjusted,
+    status: TIDY_STATUS.CHANGED,
+    reviewed: true,
   });
 
-  const withoutChanges = await tidyRemote(source, {
+  const fromInvalidJson = await tidyRemote(source, {
     apiKey: 'test-key',
-    fetchImpl: async () => remoteResponse({ revised_text: '原文' }),
+    fetchImpl: remoteResponseSequence(
+      '不是 JSON',
+      { revised_text: adjusted, changes: [] }
+    ),
   });
-  expect(withoutChanges).toEqual({
-    text: source,
-    stub: false,
-    status: TIDY_STATUS.UNCHANGED,
-    changes: [],
+  expect(fromInvalidJson).toMatchObject({
+    text: adjusted,
+    status: TIDY_STATUS.CHANGED,
+    reviewed: true,
   });
+});
 
-  const invalidShape = await tidyRemote(source, {
+test('二次检查仍为空或格式无效时返回明确原因', async () => {
+  const source = '原文';
+  const secondEmpty = await tidyRemote(source, {
     apiKey: 'test-key',
-    fetchImpl: async () => remoteResponse({ changes: [] }),
+    fetchImpl: remoteResponseSequence(
+      { revised_text: '', changes: [] },
+      { revised_text: '', changes: [] }
+    ),
   });
-  expect(invalidShape).toMatchObject({
+  expect(secondEmpty).toMatchObject({
     text: source,
     status: TIDY_STATUS.REJECTED,
-    rejectionReason: 'invalid_json',
+    rejectionReason: 'second_empty',
+  });
+
+  const secondInvalid = await tidyRemote(source, {
+    apiKey: 'test-key',
+    fetchImpl: remoteResponseSequence('不是 JSON', '仍然不是 JSON'),
+  });
+  expect(secondInvalid).toMatchObject({
+    text: source,
+    status: TIDY_STATUS.REJECTED,
+    rejectionReason: 'second_invalid_json',
   });
 });
 

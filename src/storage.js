@@ -1,6 +1,7 @@
 // 本地优先、单用户：所有笔记就是一坨 JSON，存在设备里。够用到几千条。
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createWelcomeNotes } from './noteActions';
+import { migrateThemeState } from './themeModel';
 
 const NOTES_KEY = 'ideapocket.notes.v1';
 const META_KEY = 'ideapocket.meta.v1';
@@ -38,20 +39,17 @@ export async function loadNotes() {
 // 若应用在两步之间退出，下一次启动会根据日志完成同一份目标状态，避免半恢复。
 export async function restoreImportedData(notes, themeState) {
   const nextNotes = JSON.stringify(Array.isArray(notes) ? notes : []);
-  const nextThemeState = JSON.stringify({
-    version: 2,
-    themes: Array.isArray(themeState?.themes) ? themeState.themes : [],
-    lastAnalyzedFingerprint: String(themeState?.lastAnalyzedFingerprint || ''),
-    lastAnalysis: themeState?.lastAnalysis || null,
-    noteProfiles: themeState?.noteProfiles && typeof themeState.noteProfiles === 'object' ? themeState.noteProfiles : {},
-  });
+  const nextThemeState = JSON.stringify(migrateThemeState(themeState));
+  let journalWritten = false;
   try {
     await AsyncStorage.setItem(RESTORE_JOURNAL_KEY, JSON.stringify({ nextNotes, nextThemeState }));
+    journalWritten = true;
     await AsyncStorage.multiSet([[NOTES_KEY, nextNotes], [THEMES_KEY, nextThemeState]]);
     await AsyncStorage.removeItem(RESTORE_JOURNAL_KEY);
   } catch (e) {
     const error = new Error('恢复本地笔记失败；下次启动会自动完成或报出恢复状态。');
     error.cause = e;
+    error.code = journalWritten ? 'restore_pending' : 'restore_failed';
     throw error;
   }
 }
@@ -70,18 +68,9 @@ export async function saveNotes(notes) {
 export async function loadThemeState() {
   try {
     const raw = await AsyncStorage.getItem(THEMES_KEY);
-    if (!raw) return { themes: [], lastAnalyzedFingerprint: '', lastAnalysis: null, noteProfiles: {} };
+    if (!raw) return migrateThemeState();
     const parsed = JSON.parse(raw);
-    const themes = (Array.isArray(parsed?.themes) ? parsed.themes : []).map((theme) => ({
-      ...theme,
-      status: theme.status || (theme.dismissed ? 'dismissed' : 'current'),
-    }));
-    return {
-      themes,
-      lastAnalyzedFingerprint: String(parsed?.lastAnalyzedFingerprint || parsed?.lastInputFingerprint || ''),
-      lastAnalysis: parsed?.lastAnalysis || null,
-      noteProfiles: parsed?.noteProfiles && typeof parsed.noteProfiles === 'object' ? parsed.noteProfiles : {},
-    };
+    return migrateThemeState(parsed);
   } catch (e) {
     console.warn('loadThemeState failed', e);
     const error = new Error('读取本地主题失败');
@@ -94,13 +83,7 @@ export async function saveThemeState(state) {
   try {
     await AsyncStorage.setItem(
       THEMES_KEY,
-      JSON.stringify({
-        version: 2,
-        themes: Array.isArray(state?.themes) ? state.themes : [],
-        lastAnalyzedFingerprint: String(state?.lastAnalyzedFingerprint || ''),
-        lastAnalysis: state?.lastAnalysis || null,
-        noteProfiles: state?.noteProfiles && typeof state.noteProfiles === 'object' ? state.noteProfiles : {},
-      })
+      JSON.stringify(migrateThemeState(state))
     );
   } catch (e) {
     console.warn('saveThemeState failed', e);

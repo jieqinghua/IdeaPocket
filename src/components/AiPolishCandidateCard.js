@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { metrics, radius, spacing, theme, type } from '../theme';
+import { metrics, radius, spacing, type, useAppTheme } from '../theme';
 
 const ENTER_DURATION = 280;
 const REDUCED_MOTION_DURATION = 120;
@@ -12,6 +12,8 @@ export default function AiPolishCandidateCard({
   onCancel,
   onConfirm,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(reduceMotion ? 0 : 8)).current;
   const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.99)).current;
@@ -79,7 +81,7 @@ export default function AiPolishCandidateCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   glow: {
     marginBottom: spacing.lg,
     borderRadius: radius.card,
@@ -113,7 +115,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4FA',
+    backgroundColor: theme.accentSoft,
   },
   secondaryText: {
     ...type.content,

@@ -1,6 +1,20 @@
 import * as SecureStore from 'expo-secure-store';
-import { AI_KEY_SECURE_STORE_NAME, loadAIKey, saveAIKey } from '../aiKeyStorage';
-import { AI_CONFIG, hasAIKey, setRuntimeAIKey } from '../config.ai';
+import {
+  DASHSCOPE_AI_KEY_SECURE_STORE_NAME,
+  DEEPSEEK_AI_KEY_SECURE_STORE_NAME,
+  loadDashscopeAIKey,
+  loadDeepSeekAIKey,
+  saveDashscopeAIKey,
+  saveDeepSeekAIKey,
+} from '../aiKeyStorage';
+import {
+  DASHSCOPE_ASR_CONFIG,
+  DEEPSEEK_TEXT_CONFIG,
+  hasDashscopeKey,
+  hasDeepSeekKey,
+  setRuntimeDashscopeKey,
+  setRuntimeDeepSeekKey,
+} from '../config.ai';
 
 jest.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 3,
@@ -13,15 +27,16 @@ beforeEach(() => {
   SecureStore.isAvailableAsync.mockResolvedValue(true);
   SecureStore.getItemAsync.mockReset();
   SecureStore.setItemAsync.mockReset();
-  setRuntimeAIKey('');
+  setRuntimeDeepSeekKey('');
+  setRuntimeDashscopeKey('');
 });
 
-test('从系统安全存储读取并清理 API Key', async () => {
+test('保留旧百炼安全存储记录并读取其 Key', async () => {
   SecureStore.getItemAsync.mockResolvedValue('  sk-local-key  ');
 
-  await expect(loadAIKey()).resolves.toBe('sk-local-key');
+  await expect(loadDashscopeAIKey()).resolves.toBe('sk-local-key');
   expect(SecureStore.getItemAsync).toHaveBeenCalledWith(
-    AI_KEY_SECURE_STORE_NAME,
+    DASHSCOPE_AI_KEY_SECURE_STORE_NAME,
     expect.objectContaining({
       keychainService: 'com.ideapocket.app.ai-key',
       keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
@@ -29,27 +44,60 @@ test('从系统安全存储读取并清理 API Key', async () => {
   );
 });
 
-test('API Key 只写入系统安全存储', async () => {
-  await expect(saveAIKey('  sk-new-key  ')).resolves.toBe('sk-new-key');
+test('DeepSeek 与百炼 Key 分别写入系统安全存储', async () => {
+  await expect(saveDeepSeekAIKey('  sk-deepseek  ')).resolves.toBe('sk-deepseek');
   expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
-    AI_KEY_SECURE_STORE_NAME,
-    'sk-new-key',
+    DEEPSEEK_AI_KEY_SECURE_STORE_NAME,
+    'sk-deepseek',
+    expect.objectContaining({ keychainService: 'com.ideapocket.app.ai-key.deepseek' })
+  );
+  await expect(saveDashscopeAIKey('  sk-dashscope  ')).resolves.toBe('sk-dashscope');
+  expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+    DASHSCOPE_AI_KEY_SECURE_STORE_NAME,
+    'sk-dashscope',
     expect.objectContaining({ keychainService: 'com.ideapocket.app.ai-key' })
   );
 });
 
+test('DeepSeek Key 使用独立安全存储记录读取', async () => {
+  SecureStore.getItemAsync.mockResolvedValue('  sk-deepseek-local  ');
+
+  await expect(loadDeepSeekAIKey()).resolves.toBe('sk-deepseek-local');
+  expect(SecureStore.getItemAsync).toHaveBeenCalledWith(
+    DEEPSEEK_AI_KEY_SECURE_STORE_NAME,
+    expect.objectContaining({ keychainService: 'com.ideapocket.app.ai-key.deepseek' })
+  );
+});
+
 test('拒绝保存空 API Key 或在不支持安全存储时降级到明文', async () => {
-  await expect(saveAIKey('   ')).rejects.toThrow('请输入有效的 API Key');
+  await expect(saveDeepSeekAIKey('   ')).rejects.toThrow('请输入有效的 API Key');
   SecureStore.isAvailableAsync.mockResolvedValue(false);
-  await expect(saveAIKey('sk-key')).rejects.toThrow('不支持安全存储');
+  await expect(saveDashscopeAIKey('sk-key')).rejects.toThrow('不支持安全存储');
   expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
 });
 
-test('AI 调用配置只读取启动后注入的内存 Key', () => {
-  expect(AI_CONFIG.apiKey).toBe('');
-  expect(hasAIKey()).toBe(false);
+test('两类 AI 调用只读取各自启动后注入的内存 Key', async () => {
+  SecureStore.getItemAsync.mockResolvedValue('  sk-deepseek-local  ');
+  await expect(loadDeepSeekAIKey()).resolves.toBe('sk-deepseek-local');
+  expect(DEEPSEEK_TEXT_CONFIG.apiKey).toBe('');
+  expect(DASHSCOPE_ASR_CONFIG.apiKey).toBe('');
+  expect(hasDeepSeekKey()).toBe(false);
+  expect(hasDashscopeKey()).toBe(false);
 
-  setRuntimeAIKey('  sk-runtime  ');
-  expect(AI_CONFIG.apiKey).toBe('sk-runtime');
-  expect(hasAIKey()).toBe(true);
+  setRuntimeDeepSeekKey('  sk-deepseek-runtime  ');
+  setRuntimeDashscopeKey('  sk-dashscope-runtime  ');
+  expect(DEEPSEEK_TEXT_CONFIG.apiKey).toBe('sk-deepseek-runtime');
+  expect(DASHSCOPE_ASR_CONFIG.apiKey).toBe('sk-dashscope-runtime');
+  expect(hasDeepSeekKey()).toBe(true);
+  expect(hasDashscopeKey()).toBe(true);
+  expect(DEEPSEEK_TEXT_CONFIG).toMatchObject({
+    provider: 'deepseek',
+    baseURL: 'https://api.deepseek.com',
+    model: 'deepseek-flash',
+  });
+  expect(DASHSCOPE_ASR_CONFIG).toMatchObject({
+    provider: 'dashscope',
+    baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen3-asr-flash',
+  });
 });

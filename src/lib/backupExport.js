@@ -1,4 +1,6 @@
-const APP_BACKUP_VERSION = 3;
+import { migrateThemeState } from '../themeModel';
+
+const APP_BACKUP_VERSION = 4;
 
 const cleanText = (value) => String(value || '').trim();
 
@@ -71,10 +73,29 @@ export function normalizeBackupNotes(notes = [], themes = [], options = {}) {
     }));
 }
 
+function filterExportState(raw, notes, options) {
+  const state = migrateThemeState(raw);
+  const omitted = new Set(notes.filter((note) => (!options.includeDemo && note.demo) || (options.includeDeleted === false && note.deletedAt)).map((note) => note.id));
+  Object.values(state.snapshots).forEach((source) => { if (source.demo && !options.includeDemo) omitted.add(source.id); });
+  const ids = (values) => (values || []).filter((id) => !omitted.has(id));
+  const record = (value = {}) => Object.fromEntries(Object.entries(value).filter(([id]) => !omitted.has(id)));
+  const rule = (value = {}) => ({ includedNoteIds: ids(value.includedNoteIds), excludedNoteIds: ids(value.excludedNoteIds) });
+  const theme = (value) => ({ ...value, noteIds: ids(value.noteIds), excludedNoteIds: ids(value.excludedNoteIds),
+    sourceRefs: record(value.sourceRefs), relations: record(value.relations), suggestions: record(value.suggestions),
+    revisions: (value.revisions || []).map((version) => ({ ...theme({ ...version, revisions: [] }), rules: rule(version.rules) })) });
+  const themes = state.themes.map(theme).filter((value) => value.noteIds.length || value.management === 'user' || value.revisions.some((version) => version.noteIds.length));
+  const themeIds = new Set(themes.map((value) => value.id));
+  return { ...state, themes, rules: Object.fromEntries(Object.entries(state.rules).filter(([id]) => themeIds.has(id)).map(([id, value]) => [id, rule(value)])),
+    snapshots: Object.fromEntries(Object.entries(state.snapshots).filter(([, value]) => !omitted.has(value.id))),
+    processed: record(state.processed), reviewQueue: ids(state.reviewQueue), noteProfiles: {},
+    undoActions: state.undoActions.filter((value) => themeIds.has(value.themeId)).map((value) => ({ ...value, previous: theme(value.previous), rules: rule(value.rules) })) };
+}
+
 export function buildBackupJson(notes = [], themes = [], options = {}) {
   const exportedAt = options.exportedAt || new Date();
   const normalizedNotes = normalizeBackupNotes(notes, themes, options);
   const activeNotes = normalizedNotes.filter((note) => !note.deletedAt);
+  const themeState = filterExportState({ ...options.themeState, themes }, notes, options);
   const payload = {
     app: 'IdeaPocket',
     backupVersion: APP_BACKUP_VERSION,
@@ -83,27 +104,15 @@ export function buildBackupJson(notes = [], themes = [], options = {}) {
       notes: normalizedNotes.length,
       activeNotes: activeNotes.length,
       deletedNotes: normalizedNotes.length - activeNotes.length,
-      themes: Array.isArray(themes) ? themes.length : 0,
-      currentThemes: (themes || []).filter((theme) => (theme.status || 'current') === 'current' && !theme.dismissed).length,
-      retainedThemes: (themes || []).filter((theme) => theme.status === 'retained').length,
-      historicalThemes: (themes || []).filter((theme) => theme.status === 'history').length,
-      dismissedThemes: (themes || []).filter((theme) => theme.status === 'dismissed' || theme.dismissed).length,
+      themes: themeState.themes.length,
+      currentThemes: themeState.themes.filter((theme) => (theme.status || 'current') === 'current' && !theme.dismissed).length,
+      retainedThemes: themeState.themes.filter((theme) => theme.status === 'retained').length,
+      historicalThemes: themeState.themes.filter((theme) => theme.status === 'history').length,
+      dismissedThemes: themeState.themes.filter((theme) => theme.status === 'dismissed' || theme.dismissed).length,
     },
     notes: normalizedNotes,
-    themes: (Array.isArray(themes) ? themes : []).map((theme) => ({
-        id: theme.id,
-        title: theme.title || '',
-        summary: theme.summary || '',
-        focusKeywords: Array.isArray(theme.focusKeywords) ? theme.focusKeywords : [],
-        noteIds: Array.isArray(theme.noteIds) ? theme.noteIds : [],
-        status: theme.status || (theme.dismissed ? 'dismissed' : 'current'),
-        analysisRunId: theme.analysisRunId || '',
-        archivedAt: theme.archivedAt || null,
-        retainedAt: theme.retainedAt || null,
-        dismissedAt: theme.dismissedAt || null,
-        updatedAt: theme.updatedAt || null,
-        updatedAtISO: isoTime(theme.updatedAt),
-      })),
+    themes: themeState.themes,
+    themeState,
   };
   return JSON.stringify(payload, null, 2);
 }

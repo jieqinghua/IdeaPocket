@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { theme, type } from '../theme';
+import { type, useAppTheme } from '../theme';
 
 const TABS = [
   { key: 'stream', label: '记', icon: '🌱' },
@@ -8,6 +8,8 @@ const TABS = [
 ];
 
 export default function TabBar({ tab, onChange }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   return (
     <View style={styles.bar}>
       {TABS.map((t) => {
@@ -23,7 +25,7 @@ export default function TabBar({ tab, onChange }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   bar: {
     flexDirection: 'row',
     borderTopWidth: 1,

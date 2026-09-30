@@ -7,12 +7,14 @@ import { transcribe } from '../lib/stt';
 import CaptureBar from './CaptureBar';
 import VoiceOverlay from './VoiceOverlay';
 import VoiceWaveformIcon from './VoiceWaveformIcon';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
 const HOLD_MS = 240; // 按住超过这个时长才进入录音；更短的判为"点击"
 const CANCEL_DY = -70; // 上滑超过该距离 → 取消
 const MIN_RECORD_MS = 600; // 太短的录音视为误触，丢弃
 export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpacity = 1 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const recorder = useRecorder();
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerText, setComposerText] = useState('');
@@ -237,7 +239,7 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   bottomFade: {
     position: 'absolute',
     left: 0,

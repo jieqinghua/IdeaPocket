@@ -29,7 +29,7 @@ import AiTextTransform from '../components/AiTextTransform';
 import DetailPageHeader from '../components/DetailPageHeader';
 import { TIDY_STATUS, tidy } from '../lib/aiTidy';
 import { formatNoteDate, hasAiTidy } from '../presentation';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
 const EDITOR_LINE_HEIGHT = type.detailBody.lineHeight;
 const EDITOR_MIN_HEIGHT = 600;
@@ -39,18 +39,25 @@ const BASE_CONTENT_BOTTOM_PADDING = 40;
 const AI_TOOLBAR_HEIGHT = 56;
 const AI_TOOLBAR_BUTTON_HEIGHT = 40;
 const MIN_AI_DISPLAY_MS = 800;
+const TIDY_REJECTION_NOTICES = Object.freeze({
+  second_empty: 'AI 二次检查后仍未生成有效内容，请重试',
+  second_invalid_json: 'AI 二次检查结果格式异常，请重试',
+});
 
 const measureTextUnits = (value) =>
   Array.from(value).reduce((sum, char) => sum + (/[\x00-\x7F]/.test(char) ? 0.56 : 1), 0);
 
-const FourPointStar = ({ size = metrics.standardIcon, color = theme.brand }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M12 1.5C12.5 8 16 11.5 22.5 12C16 12.5 12.5 16 12 22.5C11.5 16 8 12.5 1.5 12C8 11.5 11.5 8 12 1.5Z"
-      fill={color}
-    />
-  </Svg>
-);
+const FourPointStar = ({ size = metrics.standardIcon, color }) => {
+  const theme = useAppTheme();
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 1.5C12.5 8 16 11.5 22.5 12C16 12.5 12.5 16 12 22.5C11.5 16 8 12.5 1.5 12C8 11.5 11.5 8 12 1.5Z"
+        fill={color || theme.brand}
+      />
+    </Svg>
+  );
+};
 
 const estimateCaretLine = (text, caretIndex, inputWidth) => {
   const beforeCaret = text.slice(0, Math.max(0, caretIndex));
@@ -72,6 +79,8 @@ export default function NoteDetailScreen({
   onAttachImage,
   onRemoveImage,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const hasRaw = hasAiTidy(note);
   const [editText, setEditText] = useState(note.text);
   const [editorHeight, setEditorHeight] = useState(EDITOR_MIN_HEIGHT);
@@ -270,12 +279,13 @@ export default function NoteDetailScreen({
       dispatchAiTransition({ type: 'MINIMUM_ELAPSED' });
     }, reduceMotion ? 120 : MIN_AI_DISPLAY_MS);
     try {
-      const { text, status } = await tidy(source, { signal: controller.signal });
+      const { text, status, rejectionReason } = await tidy(source, { signal: controller.signal });
       const output = (text || '').trim();
       dispatchAiTransition({
         type: 'RESOLVED',
         resultText: output || source,
         resultStatus: status,
+        resultReason: rejectionReason,
       });
     } catch (error) {
       if (error?.code === 'aborted') return;
@@ -292,13 +302,15 @@ export default function NoteDetailScreen({
     const source = aiTransition.sourceText.trim();
     const result = aiTransition.resultText.trim() || source;
     const resultStatus = aiTransition.resultStatus;
+    const resultReason = aiTransition.resultReason;
     dispatchAiTransition({ type: 'REVEALED' });
     setIsEditing(false);
     if (resultStatus === TIDY_STATUS.REJECTED) {
-      setAiNotice('AI 输出未通过安全检查，已保留原文');
+      const notice = TIDY_REJECTION_NOTICES[resultReason] || 'AI 润色未生成可用结果，请重试';
+      setAiNotice(notice);
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
       noticeTimerRef.current = setTimeout(() => setAiNotice(''), 2400);
-      AccessibilityInfo.announceForAccessibility('AI 润色输出未通过安全检查，已保留原文');
+      AccessibilityInfo.announceForAccessibility(notice);
     } else if (resultStatus === TIDY_STATUS.UNCHANGED || result === source) {
       setAiNotice('内容已经很清楚，无需整理');
       if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
@@ -309,7 +321,12 @@ export default function NoteDetailScreen({
       AccessibilityInfo.announceForAccessibility('AI 润色完成，请确认保留原文或使用整理版');
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-  }, [aiTransition.resultStatus, aiTransition.resultText, aiTransition.sourceText]);
+  }, [
+    aiTransition.resultReason,
+    aiTransition.resultStatus,
+    aiTransition.resultText,
+    aiTransition.sourceText,
+  ]);
 
   const handleRecoveryComplete = useCallback(() => {
     dispatchAiTransition({ type: 'RECOVERED' });
@@ -470,7 +487,7 @@ export default function NoteDetailScreen({
             onPress={deleteFromMenu}
             style={({ pressed }) => [styles.overflowMenuItem, pressed && styles.pressed]}
           >
-            <Ionicons name="trash-outline" size={metrics.smallIcon} color="#8A5C52" />
+            <Ionicons name="trash-outline" size={metrics.smallIcon} color={theme.destructive} />
             <Text style={styles.overflowMenuText}>删除</Text>
           </Pressable>
         </View>
@@ -644,7 +661,7 @@ export default function NoteDetailScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.bg },
   scroll: { flex: 1 },
   content: { paddingHorizontal: spacing.page, paddingTop: spacing.sm, paddingBottom: BASE_CONTENT_BOTTOM_PADDING },
@@ -682,7 +699,7 @@ const styles = StyleSheet.create({
   imageViewerDeleteAction: { backgroundColor: theme.destructive },
   imageViewerActionDisabled: { opacity: 0.5 },
   imageViewerActionText: { ...type.content, color: theme.onBrand, fontWeight: '700' },
-  imageViewerError: { ...type.auxiliary, color: theme.destructiveSoft, textAlign: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  imageViewerError: { ...type.auxiliary, color: theme.destructive, textAlign: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   editInput: {
     paddingHorizontal: 0,
     paddingVertical: 0,

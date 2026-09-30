@@ -67,6 +67,11 @@ describe('V2 presentation helpers', () => {
     });
     expect(getThemeCardVisual('产品', '用户调研').icon).toBe('compass-outline');
     expect(getThemeCardVisual('未知主题', '自由联想').icon).toBe('folder-outline');
+    expect(getThemeCardVisual('产品定位', '', 'dark')).toEqual({
+      icon: 'compass-outline',
+      color: '#8EB0FF',
+      backgroundColor: '#223153',
+    });
   });
 
   test('uses a theme creation date and falls back to its update date', () => {

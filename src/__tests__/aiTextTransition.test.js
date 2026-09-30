@@ -40,9 +40,11 @@ test('处理中拒绝重复开始且能识别未变化结果', () => {
     type: 'RESOLVED',
     resultText: '原文',
     resultStatus: 'rejected',
+    resultReason: 'second_empty',
   });
   expect(resolved.unchanged).toBe(true);
   expect(resolved.resultStatus).toBe('rejected');
+  expect(resolved.resultReason).toBe('second_empty');
   expect(isAiTextTransitionBusy(resolved.phase)).toBe(true);
 });
 

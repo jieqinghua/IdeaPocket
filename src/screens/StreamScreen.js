@@ -7,9 +7,11 @@ import NoteCard from '../components/NoteCard';
 import { isListAtTop, isNewFirstNote } from '../newNoteEntry';
 import { sortNotesNewestFirst } from '../presentation';
 import { searchNotes } from '../search';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
 function SearchHeader({ query, onChangeQuery, onFocusChange, resultCount, searching }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   return (
     <View style={styles.searchHeader}>
       <View style={styles.searchWrap}>
@@ -58,6 +60,8 @@ export default function StreamScreen({
   onOpenNote,
   onScroll,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const normalizedQuery = searchQuery.trim();
   const searchActive = Boolean(normalizedQuery);
   const searchResults = useMemo(
@@ -269,7 +273,7 @@ export default function StreamScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   flex: { flex: 1 },
   searchHeader: { width: '100%', marginBottom: spacing.md },
   searchWrap: {

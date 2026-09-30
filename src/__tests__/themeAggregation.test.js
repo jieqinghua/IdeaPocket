@@ -50,10 +50,12 @@ test('紧凑笔记资料按内容指纹复用并限制摘要长度', () => {
 
 test('远程聚合解析并校验服务结果', async () => {
   let requestBody;
+  let requestUrl;
   const result = await aggregateThemesRemote(notes, {
     apiKey: 'test-key',
     now: 100,
-    fetchImpl: async (_url, options) => {
+    fetchImpl: async (url, options) => {
+      requestUrl = url;
       requestBody = JSON.parse(options.body);
       return {
         ok: true,
@@ -80,6 +82,12 @@ test('远程聚合解析并校验服务结果', async () => {
   expect(result.themes).toHaveLength(1);
   expect(result.themes[0]).toMatchObject({ title: '语音笔记体验', confidence: 0.88 });
   expect(result.usage).toEqual({ inputTokens: 120, outputTokens: 35 });
+  expect(requestBody).toMatchObject({
+    model: 'deepseek-flash',
+    thinking: { type: 'disabled' },
+    response_format: { type: 'json_object' },
+  });
+  expect(requestUrl).toBe('https://api.deepseek.com/chat/completions');
   expect(JSON.parse(requestBody.messages[1].content).map((note) => note.ref))
     .toEqual(['n0', 'n1', 'n2']);
   expect(requestBody.messages[0].content)

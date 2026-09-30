@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { AI_TEXT_PHASE } from '../aiTextTransition';
-import { theme, type } from '../theme';
+import { type, useAppTheme } from '../theme';
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 const SWEEP_WIDTH = 156;
@@ -19,6 +19,8 @@ export default function AiTextTransform({
   onRevealComplete,
   onRecoveryComplete,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const sweepProgress = useRef(new Animated.Value(0)).current;
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const [containerSize, setContainerSize] = useState({ width: 360, height: 112 });
@@ -125,7 +127,7 @@ export default function AiTextTransform({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   container: {
     position: 'relative',
     minHeight: 112,
@@ -138,7 +140,7 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
-    backgroundColor: 'rgba(247,248,252,0.5)',
+    backgroundColor: theme.mode === 'dark' ? 'rgba(13,17,23,0.62)' : 'rgba(247,248,252,0.5)',
   },
   sweep: {
     position: 'absolute',

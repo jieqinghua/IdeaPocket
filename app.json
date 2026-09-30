@@ -4,13 +4,18 @@
     "slug": "ideapocket",
     "version": "0.5.1",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "icon": "./src/assets/icons/app-icon.png",
     "splash": {
       "image": "./src/assets/icons/app-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F7F8FC"
+      "backgroundColor": "#F7F8FC",
+      "dark": {
+        "image": "./src/assets/icons/app-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0D1117"
+      }
     },
     "backgroundColor": "#F7F8FC",
     "extra": {
@@ -26,11 +31,11 @@
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0
     },
-    "owner": "lenny889",
     "androidNavigationBar": {
       "backgroundColor": "#F7F8FC",
       "barStyle": "dark-content"
     },
+    "owner": "lenny889",
     "android": {
       "icon": "./src/assets/icons/app-icon-android.png",
       "adaptiveIcon": {

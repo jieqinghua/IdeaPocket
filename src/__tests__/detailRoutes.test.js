@@ -15,6 +15,10 @@ describe('detailRouteReducer', () => {
       .toEqual({ type: 'theme', id: 'theme-1' });
   });
 
+  test('opens the independent settings page', () => {
+    expect(detailRouteReducer(null, { type: 'OPEN_SETTINGS' })).toEqual({ type: 'settings' });
+  });
+
   test('closes either detail page', () => {
     expect(detailRouteReducer({ type: 'note', id: 'note-1' }, { type: 'CLOSE' })).toBeNull();
     expect(detailRouteReducer({ type: 'theme', id: 'theme-1' }, { type: 'CLOSE' })).toBeNull();
@@ -27,6 +31,8 @@ describe('detailRouteReducer', () => {
   });
 
   test('uses resize keyboard mode and opaque Android system navigation', () => {
+    expect(appConfig.expo.userInterfaceStyle).toBe('automatic');
+    expect(appConfig.expo.splash.dark.backgroundColor).toBe('#0D1117');
     expect(appConfig.expo.android.softwareKeyboardLayoutMode).toBe('resize');
     expect(appConfig.expo.androidNavigationBar).toEqual({
       backgroundColor: '#F7F8FC',

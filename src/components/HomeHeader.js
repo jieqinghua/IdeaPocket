@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRef, useState } from 'react';
 import { Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
 const wordmark = require('../assets/images/ideapocket-wordmark.png');
 const BRAND_SECTION_HEIGHT = spacing.lg + 24 + spacing.sm;
@@ -24,13 +24,14 @@ export default function HomeHeader({
   onToggleLayout,
   onExportBackup,
   onImportBackup,
-  onConfigureAIKey,
+  onOpenSettings,
   onCheckUpdate,
   updateState,
-  aiKeyConfigured = false,
   backupRunning = false,
   importRunning = false,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const masonryActive = layoutMode === 'masonry';
   const updateBusy = ['checking', 'downloading', 'preparing', 'restarting'].includes(updateState?.phase);
   const updateLabel = (() => {
@@ -200,11 +201,11 @@ export default function HomeHeader({
             <View style={styles.menuDivider} />
             <Pressable
               accessibilityRole="menuitem"
-              onPress={() => chooseMenuAction(onConfigureAIKey)}
+              onPress={() => chooseMenuAction(onOpenSettings)}
               style={({ pressed }) => [styles.menuItem, pressed && styles.tabPressed]}
             >
-              <Ionicons name="key-outline" size={metrics.standardIcon} color={theme.ink} />
-              <Text style={styles.menuItemText}>{aiKeyConfigured ? '修改 API Key' : '配置 API Key'}</Text>
+              <Ionicons name="settings-outline" size={metrics.standardIcon} color={theme.ink} />
+              <Text style={styles.menuItemText}>设置</Text>
             </Pressable>
             <View style={styles.menuDivider} />
             <Pressable
@@ -228,7 +229,7 @@ export default function HomeHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   header: {
     position: 'absolute',
     right: 0,

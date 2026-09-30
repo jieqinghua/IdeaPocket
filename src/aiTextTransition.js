@@ -13,6 +13,7 @@ export const INITIAL_AI_TEXT_TRANSITION = Object.freeze({
   minimumElapsed: false,
   unchanged: false,
   resultStatus: '',
+  resultReason: '',
   error: '',
 });
 
@@ -40,6 +41,7 @@ export function aiTextTransitionReducer(state, action) {
         responseResolved: true,
         resultText: action.resultText,
         resultStatus: action.resultStatus || '',
+        resultReason: action.resultReason || '',
         unchanged: action.resultText === state.sourceText,
       });
     case 'MINIMUM_ELAPSED':
