@@ -7,10 +7,8 @@ import {
   deleteNote,
   editNote,
   removeNoteImage,
-  plantNote,
   seedDemoNotes,
   setNoteImage,
-  waterNote,
 } from '../noteActions';
 
 const base = {
@@ -19,7 +17,6 @@ const base = {
   createdAt: 1,
   lastTouched: 1,
   strength: 1,
-  planted: false,
   source: 'text',
 };
 
@@ -29,16 +26,9 @@ test('add 会清理空白并保留来源', () => {
   expect(addNote(notes, '   ')).toBe(notes);
 });
 
-test('water 更新接触时间且 strength 不超过上限', () => {
-  const notes = waterNote([{ ...base, strength: CONFIG.STRENGTH_CAP }], 'n1', 20);
-  expect(notes[0]).toMatchObject({ lastTouched: 20, strength: CONFIG.STRENGTH_CAP });
-});
-
-test('首次种下增加 strength，取消多年生不重复增加', () => {
-  const planted = plantNote([base], 'n1', 20)[0];
-  expect(planted).toMatchObject({ planted: true, strength: 2, lastTouched: 20 });
-  const unplanted = plantNote([planted], 'n1', 30)[0];
-  expect(unplanted).toMatchObject({ planted: false, strength: 2, lastTouched: 30 });
+test('编辑更新接触时间且 strength 不超过上限', () => {
+  const notes = editNote([{ ...base, strength: CONFIG.STRENGTH_CAP }], 'n1', '新正文', 20);
+  expect(notes[0]).toMatchObject({ text: '新正文', lastTouched: 20, strength: CONFIG.STRENGTH_CAP });
 });
 
 test('采用整理结果只在首次保存原文', () => {

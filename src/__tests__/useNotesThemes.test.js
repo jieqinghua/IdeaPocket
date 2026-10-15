@@ -103,8 +103,8 @@ test('关闭自动整理时，明确请求的全库检查仍会分轮完成', as
 
 test('删除来源保留历史并标记摘要，图片与触碰时间不触发增量', async () => {
   const initial = migrateThemeState({ themes: [{ id: 't', title: '咖啡', noteIds: ['a', 'b'], summary: '旧摘要' }], processed: Object.fromEntries(initialNotes.map((note) => [note.id, textHash(note.text)])) });
-  await mount(initial);
-  await act(async () => { store.water('a'); }); await flush();
+  await mount(initial, initialNotes.map((note) => note.id === 'a' ? { ...note, image: { uri: 'file:///a.jpg', fileName: 'a.jpg' } } : note));
+  await act(async () => { await store.removeImage('a'); }); await flush();
   expect(store.pendingThemeCount).toBe(0);
   expect(store.themes[0].summaryStale).toBe(false);
   await act(async () => { store.remove('b'); }); await flush();

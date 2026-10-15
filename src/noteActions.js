@@ -18,32 +18,10 @@ export function addNote(notes, text, source = 'text', now = Date.now(), id = mak
       createdAt: now,
       lastTouched: now,
       strength: 1,
-      planted: false,
       source,
     },
     ...notes,
   ];
-}
-
-export function waterNote(notes, id, now = Date.now()) {
-  return notes.map((note) =>
-    note.id === id
-      ? { ...note, lastTouched: now, strength: bumpStrength(note.strength) }
-      : note
-  );
-}
-
-export function plantNote(notes, id, now = Date.now()) {
-  return notes.map((note) =>
-    note.id === id
-      ? {
-          ...note,
-          planted: !note.planted,
-          lastTouched: now,
-          strength: note.planted ? note.strength : bumpStrength(note.strength),
-        }
-      : note
-  );
 }
 
 export function editNote(notes, id, text, now = Date.now()) {
@@ -110,7 +88,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const WELCOME_NOTES = [
   '欢迎来到 IdeaPocket。想到什么就先记下来，整理可以留到以后。',
   '轻点底部输入区可以打字；长按麦克风，把一闪而过的想法直接说出来。',
-  '打开一条笔记可以用 AI 润色整理内容，也可以随时编辑、种下或删除它。',
+  '打开一条笔记可以用 AI 润色整理内容，也可以随时编辑或删除它。',
   '积累至少 3 条笔记后，可以在主题页手动分析全部内容，把相关想法聚合成主题。',
 ];
 
@@ -123,7 +101,6 @@ export function createWelcomeNotes(now = Date.now()) {
       createdAt: timestamp,
       lastTouched: timestamp,
       strength: 1,
-      planted: false,
       source: 'text',
       welcome: true,
     };
@@ -159,7 +136,6 @@ export function seedDemoNotes(notes, now = Date.now()) {
       createdAt: timestamp,
       lastTouched: timestamp,
       strength: 1,
-      planted: false,
       source: 'text',
       demo: true,
     };

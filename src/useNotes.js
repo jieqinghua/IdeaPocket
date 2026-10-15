@@ -6,7 +6,7 @@ import { analyzeThemeState, pendingThemeNoteIds, pendingThemeSummaryIds, summary
 import { changeTheme, createManualTheme, editThemeField, invalidateNoteThemes, migrateThemeState,
   setThemeMembers, setThemeMembership, textHash, undoThemeChange } from './themeModel';
 import { addNote, applyTidyToNote, clearDemoNotes, deleteNote, editNote, removeNoteImage,
-  plantNote, seedDemoNotes, setNoteImage, waterNote } from './noteActions';
+  seedDemoNotes, setNoteImage } from './noteActions';
 import { chooseAndStoreNoteImage, removeStoredNoteImage, restoreBackupImage } from './noteImages';
 import { loadNotes, loadThemeState, restoreImportedData, saveNotes, saveThemeState } from './storage';
 import { exportNotesBackup } from './backupFiles';
@@ -158,24 +158,6 @@ export function useNotes() {
     [ready]
   );
 
-  const water = useCallback(
-    (id) => {
-      if (!ready || importingRef.current) return false;
-      setNotes((current) => waterNote(current, id));
-      return true;
-    },
-    [ready]
-  );
-
-  const plant = useCallback(
-    (id) => {
-      if (!ready || importingRef.current) return false;
-      setNotes((current) => plantNote(current, id));
-      return true;
-    },
-    [ready]
-  );
-
   const edit = useCallback(
     (id, text) => {
       if (!ready || importingRef.current) return false;
@@ -303,7 +285,7 @@ export function useNotes() {
     lastAnalysis: themeState.lastAnalysis, themeUndoActions: themeState.undoActions,
     ready, loadError, saveError, backupStatus, importStatus, retryLoad: hydrate,
     clearSaveError: () => setSaveError(''), exportBackup, previewImport, importBackup, prepareForUpdate,
-    add, water, plant, edit, attachImage, removeImage, applyTidy, remove, seedDemo, clearDemo,
+    add, edit, attachImage, removeImage, applyTidy, remove, seedDemo, clearDemo,
     analyzeThemes: () => runThemeAnalysis(true), continueThemeAnalysis: () => { lastAttemptRef.current = ''; return runThemeAnalysis(false); },
     refreshThemes: () => runThemeAnalysis(true), refreshThemeSummary: (id) => runThemeAnalysis(false, [id]),
     setAutoThemes, cancelThemeAnalysis: () => setAutoThemes(false),

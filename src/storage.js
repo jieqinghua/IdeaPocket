@@ -4,7 +4,6 @@ import { createWelcomeNotes } from './noteActions';
 import { migrateThemeState } from './themeModel';
 
 const NOTES_KEY = 'ideapocket.notes.v1';
-const META_KEY = 'ideapocket.meta.v1';
 const THEMES_KEY = 'ideapocket.themes.v1';
 const RESTORE_JOURNAL_KEY = 'ideapocket.restore-journal.v1';
 
@@ -90,22 +89,5 @@ export async function saveThemeState(state) {
     const error = new Error('保存本地主题失败');
     error.cause = e;
     throw error;
-  }
-}
-
-export async function loadMeta() {
-  try {
-    const raw = await AsyncStorage.getItem(META_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    return {};
-  }
-}
-
-export async function saveMeta(meta) {
-  try {
-    await AsyncStorage.setItem(META_KEY, JSON.stringify(meta));
-  } catch (e) {
-    console.warn('saveMeta failed', e);
   }
 }
