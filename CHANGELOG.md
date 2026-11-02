@@ -22,7 +22,13 @@
 - 证据：本次会话用户反馈；`src/hooks/useAppUpdates.js`、`src/__tests__/useAppUpdates.test.js`；`modules/ideapocket-updater/.../IdeaPocketUpdaterModule.kt` 的 `version-mismatch` 文案。
 - 待确认：用户手机是否已加载 `7006c79b` 热更新（完全退出并重开应用后应自动清理）；本次改动尚未发布。
 
-## 2026-11-02 · 本次新增，未发布工作区
+## 2026-11-02 · 0.5.1 第二次热更新发布
+- 改动：将遮罩叠色修复（`d3a1480`）作为 EAS Update 发布到 production 渠道，runtime 0.5.1、仅 Android，更新组 `17a3083f-3474-4c23-be27-f40b973a3729`。
+- 原因：修复只涉及 JavaScript，已在 Expo Go 真机验证；用户确认直接发布 production。
+- 证据：本次会话用户确认；EAS Update 发布输出与 Dashboard 记录。
+- 待确认：已安装 0.5.1 的真机加载该热更新后的表现。
+
+## 2026-11-02 · 遮罩叠色修复
 - 改动：语音遮罩的取消色只在遮罩完全隐藏后复位为 0，显示时不再对同一动画值调用 `setValue`。
 - 原因：用户反馈上滑取消后再次按住录音，蓝 / 红渐变和“松手发送，上滑取消 / 松手取消”两段提示叠在一起（截图 `reference-image/20261102-010147-1-voice-overlay-cancel-overlap-bug.jpg`）。显示时两个 effect 在同一次提交里同时写取消进度：一个启动 1→0 的原生驱动动画，另一个立即 `setValue`；原生停止动画时回传的当前值可能覆盖复位，使进度停在中间。该时序为依据 React Native 原生动画行为的推断，自动测试无法复现。
 - 证据：`src/components/VoiceOverlay.js`。
