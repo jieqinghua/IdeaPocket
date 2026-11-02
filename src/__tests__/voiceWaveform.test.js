@@ -2,6 +2,8 @@ import {
   appendWaveformSample,
   buildWaveformPoints,
   meteringToAmplitude,
+  mirrorWaveformSamples,
+  waveformBarOpacity,
 } from '../voiceWaveform';
 
 test('麦克风分贝会被转换为稳定的 0 到 1 振幅', () => {
@@ -26,4 +28,16 @@ test('真实音量样本会生成可渲染的折线坐标', () => {
   expect(points[0]).toBe('0.0,20.0');
   expect(points[1]).not.toBe('50.0,20.0');
   expect(points[2]).not.toBe('100.0,20.0');
+});
+
+test('最新音量显示在波形中间，并向两侧对称扩散', () => {
+  expect(mirrorWaveformSamples([0.1, 0.4, 0.9], 5)).toEqual([0.1, 0.4, 0.9, 0.4, 0.1]);
+  expect(mirrorWaveformSamples([0.2], 3)).toEqual([0, 0.2, 0]);
+});
+
+test('波形两端渐隐，中段保持不透明', () => {
+  expect(waveformBarOpacity(0, 43)).toBeCloseTo(0.15);
+  expect(waveformBarOpacity(42, 43)).toBeCloseTo(0.15);
+  expect(waveformBarOpacity(4, 43)).toBeGreaterThan(waveformBarOpacity(1, 43));
+  expect(waveformBarOpacity(21, 43)).toBe(1);
 });

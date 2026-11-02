@@ -3,9 +3,11 @@ import { useRef } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MASONRY_MAX_LINES } from '../masonry';
 import { formatNoteDate } from '../presentation';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
 export default function NoteCard({ note, onDelete, onOpenDetail, layout = 'list', actionsOpen = false, onActionsOpen, onActionsClose, searchMatchFields = [] }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const masonry = layout === 'masonry';
   const rawTextMatched = searchMatchFields.includes('rawText');
   const longPressTriggered = useRef(false);
@@ -122,7 +124,7 @@ export default function NoteCard({ note, onDelete, onOpenDetail, layout = 'list'
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   card: {
     ...shadow.card,
     marginBottom: spacing.page,

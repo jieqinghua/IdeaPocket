@@ -1,169 +1,98 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import DetailPageHeader from '../components/DetailPageHeader';
+import ThemeEditor from '../components/ThemeEditor';
 import { formatNoteDate, hasAiTidy } from '../presentation';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { textHash } from '../themeModel';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
-export default function ThemeDetailScreen({
-  theme: themeItem,
-  onBack,
-  onRename,
-  onRemoveNote,
-  onDissolve,
-  onRetain,
-}) {
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [title, setTitle] = useState(themeItem.title);
-  const [expandedRawIds, setExpandedRawIds] = useState(new Set());
-
-  useEffect(() => {
-    setTitle(themeItem.title);
-    setEditingTitle(false);
-    setExpandedRawIds(new Set());
-  }, [themeItem.id, themeItem.title]);
-
-  const notes = [...themeItem.notes].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  const historical = themeItem.status === 'history';
-
-  const saveTitle = () => {
-    const value = title.trim();
-    if (value && value !== themeItem.title) onRename?.(themeItem.id, value);
-    else setTitle(themeItem.title);
-    setEditingTitle(false);
+const sourceLabel = (source) => ({ ai: 'AI 摘要', local: '本地来源摘录', manual: '你编辑的摘要', legacy: '旧版摘要' }[source] || '摘要');
+export default function ThemeDetailScreen({ theme: item, store, onBack, onRename, onRemoveNote, onDissolve, onRetain }) {
+  const theme = useAppTheme(); const styles = createStyles(theme);
+  const [editor, setEditor] = useState(null);
+  const [rawIds, setRawIds] = useState(new Set());
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  useEffect(() => { setEditor(null); setRawIds(new Set()); setHistoryExpanded(false); }, [item.id]);
+  const historical = item.status === 'history'; const hidden = item.status === 'dismissed';
+  const editable = !historical && !hidden;
+  const notes = [...item.notes].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const suggestions = Object.entries(item.suggestions || {}).map(([id, relation]) => ({ note: store?.notes?.find((note) => note.id === id), relation })).filter(({ note }) => note);
+  const canUndo = store?.themeUndoActions?.some((action) => action.themeId === item.id);
+  const action = (label, callback, destructive = false) => <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={callback} style={styles.inlineActionButton}><Text style={destructive ? styles.removeText : styles.inlineAction}>{label}</Text></Pressable>;
+  const remove = (id) => Alert.alert('移出这条笔记？', '笔记会继续保留，自动整理会记住这项排除。可以手动加回或撤销。', [
+    { text: '取消', style: 'cancel' }, { text: '移出', style: 'destructive', onPress: () => onRemoveNote?.(item.id, id) },
+  ]);
+  const hide = () => Alert.alert('隐藏这个主题？', '笔记会继续保留，可从已隐藏主题中恢复。隐藏期间只接收建议。', [
+    { text: '取消', style: 'cancel' }, { text: '隐藏', onPress: () => { onDissolve?.(item.id); onBack?.(); } },
+  ]);
+  const save = ({ title, scope, summary, ids }) => {
+    if (editor === 'title') onRename?.(item.id, title);
+    if (editor === 'scope') store?.updateThemeScope(item.id, scope);
+    if (editor === 'summary') store?.updateThemeSummary(item.id, summary);
+    if (editor === 'members') store?.addThemeNotes(item.id, ids);
+    setEditor(null);
   };
-
-  const confirmRemove = (noteId) => {
-    Alert.alert('移出这条笔记？', '笔记本身不会被删除，这项调整只作用于当前主题。', [
-      { text: '取消', style: 'cancel' },
-      { text: '移出', style: 'destructive', onPress: () => onRemoveNote?.(themeItem.id, noteId) },
-    ]);
-  };
-
-  const confirmDissolve = () => {
-    Alert.alert('解散这个主题？', '所有原始笔记都会保留，后续分析会避免重新生成近似主题。', [
-      { text: '取消', style: 'cancel' },
-      {
-        text: '解散主题',
-        style: 'destructive',
-        onPress: () => {
-          onDissolve?.(themeItem.id);
-          onBack?.();
-        },
-      },
-    ]);
-  };
-
-  const toggleRaw = (noteId) => {
-    setExpandedRawIds((current) => {
-      const next = new Set(current);
-      if (next.has(noteId)) next.delete(noteId);
-      else next.add(noteId);
-      return next;
-    });
-  };
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={0}
-    >
-      <DetailPageHeader title="主题详情" backLabel="返回主题列表" onBack={onBack} />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-      >
-        <View style={styles.titleRow}>
-          {editingTitle ? (
-            <TextInput
-              autoFocus
-              value={title}
-              onChangeText={setTitle}
-              onSubmitEditing={saveTitle}
-              maxLength={18}
-              returnKeyType="done"
-              style={styles.titleInput}
-            />
-          ) : (
-            <Text style={styles.title}>{themeItem.title}</Text>
-          )}
-          {!historical && <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={editingTitle ? '保存主题名称' : '修改主题名称'}
-            onPress={editingTitle ? saveTitle : () => setEditingTitle(true)}
-            style={styles.editButton}
-          >
-            <Text style={styles.editText}>{editingTitle ? '保存' : '改名'}</Text>
-          </Pressable>}
-        </View>
-        <Text style={styles.meta}>{notes.length} 条笔记 · 更新于 {formatNoteDate(themeItem.updatedAt)}</Text>
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryLabelRow}>
-            <Ionicons name="sparkles" size={metrics.smallIcon} color={theme.brand} />
-            <Text style={styles.summaryLabel}>AI 核心总结</Text>
-          </View>
-          <Text style={styles.summary}>{themeItem.summary}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>原始笔记</Text>
-        <Text style={styles.sectionHint}>按记录时间排列，所有总结都可以回到这些来源核对。</Text>
-
-        {notes.map((note) => {
-          const hasRaw = hasAiTidy(note);
-          const rawExpanded = expandedRawIds.has(note.id);
-          return (
-            <View key={note.id} style={styles.noteCard}>
-              <Text style={styles.noteText}>{note.text}</Text>
-              {hasRaw && rawExpanded && (
-                <View style={styles.rawPanel}>
-                  <Text style={styles.rawLabel}>原始转写</Text>
-                  <Text style={styles.rawText}>{note.rawText}</Text>
-                </View>
-              )}
-              <View style={styles.noteFooter}>
-                <Text style={styles.noteMeta}>
-                  {formatNoteDate(note.createdAt)} · {note.source === 'voice' ? '语音' : '文字'}
-                </Text>
-                {hasRaw && (
-                  <Pressable accessibilityRole="button" onPress={() => toggleRaw(note.id)} style={styles.inlineActionButton}>
-                    <Text style={styles.inlineAction}>{rawExpanded ? '收起原文' : '查看原文'}</Text>
-                  </Pressable>
-                )}
-                {!historical && <Pressable accessibilityRole="button" onPress={() => confirmRemove(note.id)} style={styles.inlineActionButton}>
-                  <Text style={styles.removeText}>移出</Text>
-                </Pressable>}
-              </View>
-            </View>
-          );
-        })}
-
-        {historical && (
-          <Pressable accessibilityRole="button" onPress={() => { onRetain?.(themeItem.id); onBack?.(); }} style={styles.retainButton}>
-            <Text style={styles.retainText}>保留</Text>
-          </Pressable>
-        )}
-        <Pressable accessibilityRole="button" onPress={confirmDissolve} style={styles.dissolveButton}>
-          <Text style={styles.dissolveText}>解散主题</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+  return <View style={styles.root}>
+    <DetailPageHeader title="主题详情" backLabel="返回主题列表" onBack={onBack} />
+    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <View style={styles.titleRow}><Text style={styles.title}>{item.title}</Text>{editable && action('改名', () => setEditor('title'))}</View>
+      <Text style={styles.meta}>{notes.length} 条笔记 · {item.management === 'user' ? '由你管理' : item.maturity === 'candidate' ? '候选主题' : '自动主题'} · 更新于 {formatNoteDate(item.updatedAt)}</Text>
+      {editable && store && <View style={styles.controlCard}>
+        <View style={styles.titleRow}><Text style={styles.controlText}>自动加入相关笔记</Text><Switch accessibilityLabel="自动加入相关笔记" value={!!item.autoJoin} onValueChange={(value) => store.setThemeAutoJoin(item.id, value)} trackColor={{ true: theme.brand }} /></View>
+        <Text style={styles.meta}>{item.autoJoin ? '明确相关时加入，弱关联与本地粗匹配显示建议。' : '新笔记只显示加入建议，由你决定成员。'}</Text>
+        <View style={styles.actions}>{item.management !== 'user' && action('保留为我的主题', () => onRetain?.(item.id))}{canUndo && action('撤销最近调整', () => store.undoTheme(item.id))}</View>
+      </View>}
+      <View style={styles.controlCard}>
+        <View style={styles.titleRow}><Text style={styles.summaryLabel}>主题范围</Text>{editable && store && action('编辑范围', () => setEditor('scope'))}</View>
+        <Text style={styles.summary}>{item.scope || '尚未说明，可补充包含的对象、问题或目标。'}</Text>
+      </View>
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryLabelRow}><Ionicons name={item.summarySource === 'ai' ? 'sparkles' : 'document-text-outline'} size={metrics.smallIcon} color={theme.brand} /><Text style={styles.summaryLabel}>{sourceLabel(item.summarySource)}{item.summaryMode === 'manual' && item.summarySource !== 'manual' ? ' · 由你确认' : ''}</Text></View>
+        <Text style={styles.summary}>{item.summary || '尚未生成摘要'}</Text>
+        {!!item.summaryNotice && <Text style={styles.stale}>{item.summaryNotice}</Text>}
+        {item.summaryStale && <Text style={styles.stale}>来源或成员已变化，摘要待更新。</Text>}
+        {editable && store && <View style={styles.actions}>{action('编辑摘要', () => setEditor('summary'))}{action(store.themeStatus === 'running' ? '正在整理…' : '更新摘要', () => store.refreshThemeSummary(item.id))}</View>}
+        {!!item.summaryCandidate && <View style={styles.rawPanel}><Text style={styles.summaryLabel}>更新候选 · {sourceLabel(item.summaryCandidate.source)}</Text><Text style={styles.summary}>{item.summaryCandidate.text}</Text>{editable && action('采用这份摘要', () => store?.adoptThemeSummary(item.id))}<Text style={styles.meta}>未采用前保留你编辑的摘要。</Text></View>}
+      </View>
+      {!!suggestions.length && <><Text style={styles.sectionTitle}>加入建议</Text>{suggestions.map(({ note, relation }) => <View key={note.id} style={styles.noteCard}>
+        <Text style={styles.noteText}>{note.text}</Text><Text style={styles.meta}>{relation.reason}</Text>
+        {!!relation.evidence && <Text style={styles.meta}>依据：{relation.evidence}</Text>
+        }{relation.fingerprint && relation.fingerprint !== textHash(note.text) && <Text style={styles.stale}>正文已修改，建议待重新检查。</Text>}{editable && action('加入此笔记', () => store?.addThemeNote(item.id, note.id))}
+      </View>)}</>}
+      <View style={styles.actions}><Text style={styles.sectionTitle}>来源笔记</Text>{editable && store && action('加入笔记', () => setEditor('members'))}</View>
+      <Text style={styles.sectionHint}>按记录时间排列，可核对归属与摘要。</Text>
+      {notes.map((note) => { const relation = item.relations?.[note.id]; const raw = hasAiTidy(note); return <View key={note.id} style={styles.noteCard}>
+        <Text style={styles.noteText}>{note.text}</Text>
+        {relation && <View style={styles.rawPanel}><Text style={styles.rawLabel}>{relation.source === 'manual' ? '手动加入' : relation.source === 'local' ? '本地相关性' : 'AI 归属理由'}</Text><Text style={styles.meta}>{relation.reason}</Text>{!!relation.evidence && <Text style={styles.rawText}>“{relation.evidence}”</Text>}{relation.fingerprint && relation.fingerprint !== textHash(note.text) && <Text style={styles.stale}>正文已修改，归属依据待重新检查。</Text>}</View>}
+        {raw && rawIds.has(note.id) && <View style={styles.rawPanel}><Text style={styles.rawLabel}>原始转写</Text><Text style={styles.rawText}>{note.rawText}</Text></View>}
+        <View style={styles.noteFooter}><Text style={styles.noteMeta}>{formatNoteDate(note.createdAt)} · {note.source === 'voice' ? '语音' : '文字'}</Text>{raw && action(rawIds.has(note.id) ? '收起原文' : '查看原文', () => setRawIds((current) => { const next = new Set(current); if (next.has(note.id)) next.delete(note.id); else next.add(note.id); return next; }))}{editable && action('移出', () => remove(note.id), true)}</View>
+      </View>; })}
+      {historical && <Text style={styles.meta}>这是旧版主题记录。旧数据没有保存当时正文，下面的笔记是当前内容。</Text>}
+      {!!item.revisions?.length && <>
+        {action(`变化记录（${item.revisions.length}）${historyExpanded ? ' · 收起' : ' · 展开'}`, () => setHistoryExpanded((value) => !value))}
+        {historyExpanded && [...item.revisions].reverse().map((version) => <View key={version.versionId} style={styles.noteCard}>
+          <Text style={styles.summaryLabel}>{version.reason} · {formatNoteDate(version.recordedAt)}</Text><Text style={styles.noteText}>{version.title}</Text><Text style={styles.meta}>范围：{version.scope || '未设置'}</Text><Text style={styles.summary}>{sourceLabel(version.summarySource)}：{version.summary || '未生成'}</Text>
+          {version.summaryStale && <Text style={styles.stale}>这一版摘要处于待更新状态。</Text>}
+          {version.legacyHistory ? <Text style={styles.meta}>旧记录缺少当时正文版本，无法还原来源。</Text> : version.noteIds.map((id) => {
+            const source = store?.themeSnapshots?.[version.sourceRefs?.[id]];
+            return <View key={id} style={styles.rawPanel}><Text style={styles.rawText}>{source?.text || '这一条来源版本不可用'}</Text>{!!source?.rawText && source.rawText !== source.text && <Text style={styles.meta}>原始转写：{source.rawText}</Text>}</View>;
+          })}
+        </View>)}
+      </>}
+      {(historical || hidden) && <Pressable accessibilityRole="button" onPress={() => { if (hidden) store?.restoreTheme(item.id); else onRetain?.(item.id); }} style={styles.retainButton}><Text style={styles.retainText}>{hidden ? '恢复主题' : '保留并继续管理'}</Text></Pressable>}
+      {hidden && store && <View style={styles.controlCard}><View style={styles.titleRow}><Text style={styles.controlText}>不再建议此方向</Text><Switch accessibilityLabel="不再建议此方向" value={!!item.suppressed} onValueChange={(value) => store.suppressTheme(item.id, value)} /></View><Text style={styles.meta}>开启后抑制相近内容的建议；恢复主题时会解除。</Text></View>}
+      {!hidden && <Pressable accessibilityRole="button" onPress={hide} style={styles.dissolveButton}><Text style={styles.dissolveText}>隐藏主题</Text></Pressable>}
+    </ScrollView>
+    {!!editor && <ThemeEditor mode={editor} item={item} notes={store?.notes || []} onCancel={() => setEditor(null)} onSave={save} />}
+  </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
+  controlCard: { marginTop: spacing.md, padding: spacing.md, borderRadius: radius.card, backgroundColor: theme.surface },
+  controlText: { ...type.content, flex: 1, color: theme.ink },
+  actions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  stale: { ...type.auxiliary, color: theme.inkSoft, marginTop: spacing.sm },
   root: { flex: 1, backgroundColor: theme.bg },
   content: { paddingHorizontal: spacing.page, paddingTop: spacing.lg, paddingBottom: spacing.xxl },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

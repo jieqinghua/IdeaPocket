@@ -6,6 +6,8 @@ export function detailRouteReducer(state, action) {
       return action.id ? { type: 'note', id: action.id, focus: !!action.focus } : state;
     case 'OPEN_THEME':
       return action.id ? { type: 'theme', id: action.id } : state;
+    case 'OPEN_SETTINGS':
+      return { type: 'settings' };
     case 'CLOSE':
       return null;
     default:

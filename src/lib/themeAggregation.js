@@ -1,6 +1,7 @@
-import { AI_CONFIG, hasAIKey } from '../config.ai';
+import { DEEPSEEK_TEXT_CONFIG, hasDeepSeekKey } from '../config.ai';
 import { normalizeGeneratedThemes } from '../themeActions';
 import { DEFAULT_TIMEOUT_MS, fetchWithTimeout } from './http';
+import { buildContentProfiles, coherentLocalGroups, profileText } from './themeRetrieval';
 
 const SYSTEM_PROMPT = `你是个人灵感笔记的主题整理助手。请对提供的全部笔记做一次全局分析，识别出多个高度相关、焦点明确的主题组。
 规则：
@@ -25,7 +26,9 @@ const stripCodeFence = (value) =>
 
 export function parseThemeResponse(content) {
   const parsed = JSON.parse(stripCodeFence(content));
-  return Array.isArray(parsed) ? parsed : parsed?.themes || [];
+  const themes = Array.isArray(parsed) ? parsed : parsed?.themes;
+  if (!Array.isArray(themes) || themes.some((item) => !item || typeof item !== 'object')) throw new Error('缺少有效主题集合');
+  return themes;
 }
 
 const STOP_BIGRAMS = new Set([
@@ -80,31 +83,8 @@ function localSummary(notes) {
 
 export function aggregateLocally(notes, now = Date.now()) {
   const eligible = notes.filter((note) => String(note.text || '').trim());
-  const parent = eligible.map((_, index) => index);
-  const find = (index) => {
-    if (parent[index] !== index) parent[index] = find(parent[index]);
-    return parent[index];
-  };
-  const union = (left, right) => {
-    const a = find(left);
-    const b = find(right);
-    if (a !== b) parent[b] = a;
-  };
-
-  for (let left = 0; left < eligible.length; left += 1) {
-    for (let right = left + 1; right < eligible.length; right += 1) {
-      const match = similarity(eligible[left].text, eligible[right].text);
-      if (match.shared >= 2 && match.score >= 0.18) union(left, right);
-    }
-  }
-
-  const groups = new Map();
-  eligible.forEach((note, index) => {
-    const root = find(index);
-    groups.set(root, [...(groups.get(root) || []), note]);
-  });
-
-  const candidates = [...groups.values()]
+  const byId = new Map(eligible.map((note) => [note.id, note]));
+  const candidates = coherentLocalGroups(eligible).map((ids) => ids.map((id) => byId.get(id)))
     .filter((group) => group.length >= 3)
     .map((group) => ({
       title: localTitle(group),
@@ -116,26 +96,8 @@ export function aggregateLocally(notes, now = Date.now()) {
   return normalizeGeneratedThemes(candidates, notes, now);
 }
 
-const profileFingerprint = (note) => `${note.lastTouched || note.createdAt || 0}:${String(note.text || '')}`;
-
 export function buildNoteProfiles(notes, currentProfiles = {}) {
-  const profiles = {};
-  notes.forEach((note) => {
-    const fingerprint = profileFingerprint(note);
-    const cached = currentProfiles[note.id];
-    if (cached?.fingerprint === fingerprint) {
-      profiles[note.id] = cached;
-      return;
-    }
-    const text = String(note.text || '').trim();
-    const keywords = [...tokensFor(text)].slice(0, 5);
-    profiles[note.id] = {
-      fingerprint,
-      summary: text.length <= 160 ? text : `${text.slice(0, 157)}…`,
-      keywords,
-    };
-  });
-  return profiles;
+  return buildContentProfiles(notes, currentProfiles);
 }
 
 const addUsage = (left = {}, right = {}) => ({
@@ -146,9 +108,9 @@ const addUsage = (left = {}, right = {}) => ({
 async function requestRemoteThemes(
   notes,
   {
-    apiKey = AI_CONFIG.apiKey,
-    baseURL = AI_CONFIG.llmBaseURL,
-    model = AI_CONFIG.llmModel,
+    apiKey = DEEPSEEK_TEXT_CONFIG.apiKey,
+    baseURL = DEEPSEEK_TEXT_CONFIG.baseURL,
+    model = DEEPSEEK_TEXT_CONFIG.model,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     fetchImpl = fetch,
     signal,
@@ -182,6 +144,7 @@ async function requestRemoteThemes(
               content: JSON.stringify(requestNotes),
             },
           ],
+          thinking: { type: 'disabled' },
           temperature: 0.2,
           response_format: { type: 'json_object' },
           max_tokens: 16384,
@@ -241,15 +204,15 @@ export async function aggregateThemesRemote(notes, options = {}) {
 
 export async function aggregateThemes(notes, options = {}) {
   const noteProfiles = buildNoteProfiles(notes, options.noteProfiles);
-  if (notes.length < 3) return { themes: [], stub: !hasAIKey(), mode: 'none', usage: {}, noteProfiles };
-  if (!hasAIKey() && !options.apiKey) {
+  if (notes.length < 3) return { themes: [], stub: !hasDeepSeekKey(), mode: 'none', usage: {}, noteProfiles };
+  if (!hasDeepSeekKey() && !options.apiKey) {
     return { themes: aggregateLocally(notes, options.now), stub: true, mode: 'local', usage: {}, noteProfiles };
   }
   const rawChars = notes.reduce((total, note) => total + String(note.text || '').length, 0);
   const mode = rawChars <= DIRECT_ANALYSIS_CHAR_LIMIT ? 'direct' : 'profiles';
   const analysisNotes = mode === 'direct' ? notes : notes.map((note) => ({
     ...note,
-    text: `${noteProfiles[note.id]?.summary || ''}\n关键词：${(noteProfiles[note.id]?.keywords || []).join('、')}`,
+    text: `${profileText(noteProfiles[note.id])}\n关键词：${(noteProfiles[note.id]?.keywords || []).join('、')}`,
   }));
   const result = await aggregateThemesRemote(analysisNotes, options);
   return { ...result, stub: false, mode, noteProfiles };

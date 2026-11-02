@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import { metrics, radius, spacing, theme, type } from '../theme';
+import { metrics, radius, spacing, type, useAppTheme } from '../theme';
 
 const ENTER_DURATION = 280;
 const REDUCED_MOTION_DURATION = 120;
@@ -12,6 +12,8 @@ export default function AiPolishCandidateCard({
   onCancel,
   onConfirm,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(reduceMotion ? 0 : 8)).current;
   const scale = useRef(new Animated.Value(reduceMotion ? 1 : 0.99)).current;
@@ -58,19 +60,19 @@ export default function AiPolishCandidateCard({
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="取消 AI 润色结果"
+              accessibilityLabel="保留 AI 润色前的原文"
               onPress={onCancel}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
             >
-              <Text style={styles.secondaryText}>取消</Text>
+              <Text style={styles.secondaryText}>保留原文</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="替换原文为 AI 润色结果"
+              accessibilityLabel="使用 AI 润色整理版"
               onPress={onConfirm}
               style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryText}>替换原文</Text>
+              <Text style={styles.primaryText}>使用整理版</Text>
             </Pressable>
           </View>
         </View>
@@ -79,7 +81,7 @@ export default function AiPolishCandidateCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   glow: {
     marginBottom: spacing.lg,
     borderRadius: radius.card,
@@ -113,7 +115,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.control,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F2F4FA',
+    backgroundColor: theme.accentSoft,
   },
   secondaryText: {
     ...type.content,

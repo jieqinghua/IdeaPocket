@@ -7,7 +7,7 @@ import NoteCard from './NoteCard';
 
 const HORIZONTAL_PADDING = spacing.page;
 
-export default function MasonryNoteList({ notes, store, onOpenNote, onScroll, contentTopInset = 0, initialScrollOffset = 0, animatedNoteId, activeActionsNoteId, onActionsChange, searchHeader, searchMatchById = {}, emptyContent = null }) {
+export default function MasonryNoteList({ notes, store, onOpenNote, onScroll, scrollRef, contentTopInset = 0, initialScrollOffset = 0, animatedNoteId, activeActionsNoteId, onActionsChange, searchHeader, searchMatchById = {}, emptyContent = null }) {
   const { width } = useWindowDimensions();
   const [measuredHeights, setMeasuredHeights] = useState({});
   const columnWidth = Math.max(1, (width - HORIZONTAL_PADDING * 2 - MASONRY_GAP) / 2);
@@ -25,6 +25,7 @@ export default function MasonryNoteList({ notes, store, onOpenNote, onScroll, co
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.flex}
       removeClippedSubviews={false}
       contentContainerStyle={[styles.scrollContent, { paddingTop: contentTopInset }]}

@@ -13,6 +13,15 @@ const THEME_TONES = [
   { color: '#A96D2D', backgroundColor: '#FFF4E8' },
 ];
 
+const DARK_THEME_TONES = [
+  { color: '#8EB0FF', backgroundColor: '#223153' },
+  { color: '#9BACFF', backgroundColor: '#292D52' },
+  { color: '#78C4B5', backgroundColor: '#183B38' },
+  { color: '#A8B8CE', backgroundColor: '#26303D' },
+  { color: '#BFA4FF', backgroundColor: '#352B50' },
+  { color: '#F0B574', backgroundColor: '#45301F' },
+];
+
 export const THEME_VISUALS = [
   { icon: 'compass-outline', tone: 0, keywords: ['产品', '定位', '策略', '路线图', '竞品'] },
   { icon: 'people-outline', tone: 1, keywords: ['用户', '访谈', '调研', '需求', '洞察'] },
@@ -47,7 +56,8 @@ const DEFAULT_THEME_VISUAL = {
 
 const normalizedText = (value) => String(value || '').trim().toLowerCase();
 
-export function getThemeCardVisual(title, summary) {
+export function getThemeCardVisual(title, summary, mode = 'light') {
+  const tones = mode === 'dark' ? DARK_THEME_TONES : THEME_TONES;
   const normalizedTitle = normalizedText(title);
   const normalizedSummary = normalizedText(summary);
   let best = null;
@@ -62,10 +72,13 @@ export function getThemeCardVisual(title, summary) {
     if (!best || score > best.score) best = { visual, index, score };
   });
 
-  if (!best?.score) return DEFAULT_THEME_VISUAL;
+  if (!best?.score) return {
+    icon: DEFAULT_THEME_VISUAL.icon,
+    ...tones[0],
+  };
   return {
     icon: best.visual.icon,
-    ...THEME_TONES[best.visual.tone],
+    ...tones[best.visual.tone],
   };
 }
 
@@ -121,15 +134,15 @@ function buildLegacyThemeCards(notes) {
   return [...themes.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export function buildThemeCards(themesOrNotes, notes) {
+export function buildThemeCards(themesOrNotes, notes, options = {}) {
   if (!Array.isArray(notes)) return buildLegacyThemeCards(themesOrNotes || []);
   const notesById = new Map(notes.map((note) => [note.id, note]));
   return (themesOrNotes || [])
-    .filter((item) => !item.dismissed)
+    .filter((item) => options.includeHidden || (!item.dismissed && item.status !== 'dismissed'))
     .map((item) => ({
       ...item,
       notes: (item.noteIds || []).map((id) => notesById.get(id)).filter(Boolean),
     }))
-    .filter((item) => item.notes.length >= 1)
+    .filter((item) => item.notes.length >= 1 || item.management === 'user' || item.maturity === 'established')
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 }

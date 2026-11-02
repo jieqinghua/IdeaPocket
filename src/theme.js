@@ -1,7 +1,8 @@
-import { Platform } from 'react-native';
+import { Platform, useColorScheme } from 'react-native';
 
-// L 级视觉换肤：冷白底色 + 蓝色主色，保留现有的空间、触控和排版尺度。
-export const theme = {
+// 浅色保持既有视觉；深色使用低眩光蓝黑底，并维持同一套语义颜色键。
+export const lightTheme = {
+  mode: 'light',
   bg: '#F7F8FC',
   surface: '#FFFFFF',
   ink: '#1C2333',
@@ -15,8 +16,6 @@ export const theme = {
   line: '#E8ECF3',
   fresh: '#3E8D67',
   wilting: '#C17845',
-  compost: '#929AAA',
-  planted: '#2E7A65',
   destructive: '#D94C54',
   destructiveSoft: '#FFF1F2',
   overlay: '#111827',
@@ -24,6 +23,36 @@ export const theme = {
   onBrand: '#FFFFFF',
   imageViewer: '#111827',
 };
+
+export const darkTheme = {
+  mode: 'dark',
+  bg: '#0D1117',
+  surface: '#171E2B',
+  ink: '#F1F5FC',
+  inkSoft: '#AAB4C5',
+  inkMuted: '#7D899D',
+  brand: '#76A0FF',
+  brandPressed: '#5F8CEB',
+  accent: '#5F8FFF',
+  accentSoft: '#202C45',
+  cardLine: '#2A3445',
+  line: '#252E3D',
+  fresh: '#65B38C',
+  wilting: '#E0A36D',
+  destructive: '#FF7B83',
+  destructiveSoft: '#3B2028',
+  overlay: '#090C12',
+  overlaySoft: 'rgba(3,6,12,0.72)',
+  onBrand: '#FFFFFF',
+  imageViewer: '#05070B',
+};
+
+// 兼容非组件代码；组件应通过 useAppTheme() 响应系统主题实时变化。
+export const theme = lightTheme;
+
+export function useAppTheme() {
+  return useColorScheme() === 'dark' ? darkTheme : lightTheme;
+}
 
 // RN 0.81 的 boxShadow 在 New Architecture + Android 9+ 上支持颜色、模糊与扩散；
 // 低版本 Android 仍退回 elevation，避免旧设备完全没有层次。

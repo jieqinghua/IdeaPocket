@@ -43,6 +43,10 @@ test('ASR 使用官方 input_audio 结构并解析文字', async () => {
     fetchImpl,
   });
   const request = JSON.parse(fetchImpl.mock.calls[0][1].body);
+  expect(fetchImpl.mock.calls[0][0]).toBe(
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
+  );
+  expect(request.model).toBe('qwen3-asr-flash');
   expect(request.messages[0].content[0]).toEqual({
     type: 'input_audio',
     input_audio: { data: 'data:audio/aac;base64,YWJj' },

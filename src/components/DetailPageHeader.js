@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { metrics, spacing, theme, type } from '../theme';
+import { metrics, spacing, type, useAppTheme } from '../theme';
 
 export default function DetailPageHeader({
   title,
@@ -12,6 +12,8 @@ export default function DetailPageHeader({
   onRightPress,
   rightIcon,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   return (
     <View style={styles.header}>
       <Pressable
@@ -54,7 +56,7 @@ export default function DetailPageHeader({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   header: {
     minHeight: 56,
     paddingHorizontal: spacing.xs,

@@ -71,7 +71,7 @@ test('归一化备份笔记保留 rawText 来源 时间和主题', () => {
 
 test('备份 JSON 默认排除演示数据并保留软删除标记', () => {
   const parsed = JSON.parse(buildBackupJson(notes, themes, { exportedAt }));
-  expect(parsed.backupVersion).toBe(3);
+  expect(parsed.backupVersion).toBe(4);
   expect(parsed.counts).toEqual({
     notes: 2,
     activeNotes: 1,

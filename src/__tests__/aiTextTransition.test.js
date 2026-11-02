@@ -10,8 +10,9 @@ const reduce = (state, action) => aiTextTransitionReducer(state, action);
 test('快速响应仍等待最短水波展示时间后再揭示候选稿', () => {
   let state = reduce(INITIAL_AI_TEXT_TRANSITION, { type: 'BEGIN', sourceText: '原文' });
   expect(state.phase).toBe(AI_TEXT_PHASE.PROCESSING);
-  state = reduce(state, { type: 'RESOLVED', resultText: '整理后' });
+  state = reduce(state, { type: 'RESOLVED', resultText: '整理后', resultStatus: 'changed' });
   expect(state.phase).toBe(AI_TEXT_PHASE.PROCESSING);
+  expect(state.resultStatus).toBe('changed');
   state = reduce(state, { type: 'MINIMUM_ELAPSED' });
   expect(state.phase).toBe(AI_TEXT_PHASE.REVEALING);
 });
@@ -35,8 +36,15 @@ test('失败进入恢复状态且恢复后回到空闲', () => {
 test('处理中拒绝重复开始且能识别未变化结果', () => {
   const started = reduce(INITIAL_AI_TEXT_TRANSITION, { type: 'BEGIN', sourceText: '原文' });
   expect(reduce(started, { type: 'BEGIN', sourceText: '另一条' })).toBe(started);
-  const resolved = reduce(started, { type: 'RESOLVED', resultText: '原文' });
+  const resolved = reduce(started, {
+    type: 'RESOLVED',
+    resultText: '原文',
+    resultStatus: 'rejected',
+    resultReason: 'second_empty',
+  });
   expect(resolved.unchanged).toBe(true);
+  expect(resolved.resultStatus).toBe('rejected');
+  expect(resolved.resultReason).toBe('second_empty');
   expect(isAiTextTransitionBusy(resolved.phase)).toBe(true);
 });
 

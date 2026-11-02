@@ -49,27 +49,18 @@ test('主题状态独立读取并兼容空数据', async () => {
     themes: [{ id: 't1' }],
     lastInputFingerprint: 'hash',
   }));
-  await expect(loadThemeState()).resolves.toEqual({
-    themes: [{ id: 't1', status: 'current' }],
-    lastAnalyzedFingerprint: 'hash',
-    lastAnalysis: null,
-    noteProfiles: {},
-  });
+  const state = await loadThemeState();
+  expect(state).toMatchObject({ version: 3, lastAnalyzedFingerprint: 'hash', settings: { autoEnabled: false }, snapshots: {}, processed: {} });
+  expect(state.themes[0]).toMatchObject({ id: 't1', status: 'current', management: 'auto', autoJoin: true });
+  expect(state.rules.t1).toEqual({ includedNoteIds: [], excludedNoteIds: [] });
 });
 
 test('保存主题状态', async () => {
   AsyncStorage.setItem.mockResolvedValue();
   await saveThemeState({ themes: [{ id: 't1' }], lastAnalyzedFingerprint: 'hash' });
-  expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-    'ideapocket.themes.v1',
-    JSON.stringify({
-      version: 2,
-      themes: [{ id: 't1' }],
-      lastAnalyzedFingerprint: 'hash',
-      lastAnalysis: null,
-      noteProfiles: {},
-    })
-  );
+  const [key, saved] = AsyncStorage.setItem.mock.calls[0];
+  expect(key).toBe('ideapocket.themes.v1');
+  expect(JSON.parse(saved)).toMatchObject({ version: 3, lastAnalyzedFingerprint: 'hash', snapshots: {}, rules: { t1: { includedNoteIds: [], excludedNoteIds: [] } }, settings: { autoEnabled: false } });
 });
 
 test('导入恢复先写事务日志，再一起提交笔记和主题状态', async () => {
@@ -82,4 +73,23 @@ test('导入恢复先写事务日志，再一起提交笔记和主题状态', as
     ['ideapocket.themes.v1', expect.any(String)],
   ]);
   expect(AsyncStorage.removeItem).toHaveBeenCalledWith('ideapocket.restore-journal.v1');
+});
+
+
+test('中断的恢复事务会续写同一份笔记和完整主题状态', async () => {
+  const nextNotes = JSON.stringify([{ id: 'n1', text: '已恢复' }]);
+  const nextThemeState = JSON.stringify({ version: 3, themes: [{ id: 't', noteIds: ['n1'], title: '恢复主题' }], rules: { t: { excludedNoteIds: ['n2'] } }, settings: { autoEnabled: true } });
+  AsyncStorage.getItem.mockResolvedValueOnce(JSON.stringify({ nextNotes, nextThemeState })).mockResolvedValueOnce(nextNotes).mockResolvedValueOnce(nextThemeState);
+  expect(await loadNotes()).toEqual(JSON.parse(nextNotes));
+  expect(AsyncStorage.multiSet).toHaveBeenCalledWith([['ideapocket.notes.v1', nextNotes], ['ideapocket.themes.v1', nextThemeState]]);
+  const state = await loadThemeState();
+  expect(state.rules.t.excludedNoteIds).toEqual(['n2']);
+  expect(state.settings.autoEnabled).toBe(true);
+});
+
+test('日志落盘后的恢复失败明确为待续写，保留恢复所需图片', async () => {
+  AsyncStorage.setItem.mockResolvedValue();
+  AsyncStorage.multiSet.mockRejectedValue(new Error('disk full'));
+  await expect(restoreImportedData([{ id: 'n1', text: '恢复' }], { themes: [] })).rejects.toMatchObject({ code: 'restore_pending' });
+  expect(AsyncStorage.removeItem).not.toHaveBeenCalled();
 });

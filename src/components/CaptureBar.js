@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { metrics, radius, shadow, spacing, theme, type } from '../theme';
+import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
 
 // FAB 点击/语音转写后弹出的可预填输入条；关闭交由外部遮罩处理。
 export default function CaptureBar({
@@ -12,6 +12,8 @@ export default function CaptureBar({
   onRetry,
   retrying = false,
 }) {
+  const theme = useAppTheme();
+  const styles = createStyles(theme);
   const [text, setText] = useState(initialText);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function CaptureBar({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
   wrap: {
     ...shadow.sheet,
     flexDirection: 'row',
