@@ -124,7 +124,6 @@ export default function VoiceOverlay({
     presence.stopAnimation();
     if (visible) {
       setRendered(true);
-      cancelProgress.setValue(visibleCancelRef.current ? 1 : 0);
       animation = Animated.timing(presence, {
         toValue: 1,
         duration: 220,
@@ -141,6 +140,10 @@ export default function VoiceOverlay({
     }
     animation?.start(({ finished }) => {
       if (finished && !visible) {
+        // 完全隐藏后才把取消色复位：此时没有动画在跑。若在下次显示时一边启动 1→0 动画、
+        // 一边 setValue，原生驱动停止动画时回传的旧值会覆盖复位，红蓝两层停在半透明叠加。
+        visibleCancelRef.current = false;
+        cancelProgress.setValue(0);
         setRendered(false);
         onHiddenRef.current?.();
       }
