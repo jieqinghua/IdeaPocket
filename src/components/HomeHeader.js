@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRef, useState } from 'react';
 import { Animated, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { metrics, radius, shadow, spacing, type, useAppTheme } from '../theme';
+import { formatDownloadProgress } from '../updateDownload';
 
 const wordmark = require('../assets/images/ideapocket-wordmark.png');
 const BRAND_SECTION_HEIGHT = spacing.lg + 24 + spacing.sm;
@@ -33,10 +34,13 @@ export default function HomeHeader({
   const theme = useAppTheme();
   const styles = createStyles(theme);
   const masonryActive = layoutMode === 'masonry';
-  const updateBusy = ['checking', 'downloading', 'preparing', 'restarting'].includes(updateState?.phase);
+  // 下载中保持可点：点按查看进度并可取消或改用浏览器，避免系统下载异常时菜单永久灰掉。
+  const updateBusy = ['checking', 'preparing', 'restarting'].includes(updateState?.phase);
   const updateLabel = (() => {
     if (updateState?.phase === 'checking') return '正在检查更新…';
-    if (updateState?.phase === 'downloading') return `下载更新 ${Math.round(updateState?.progress || 0)}%`;
+    if (updateState?.phase === 'downloading') {
+      return updateState?.stalled ? '下载无进展，点按处理' : `下载更新 ${formatDownloadProgress(updateState)}`;
+    }
     if (updateState?.phase === 'preparing') return '正在保护本地数据…';
     if (updateState?.phase === 'restarting') return '正在重启更新…';
     if (updateState?.phase === 'native-ready') return '更新已下载';

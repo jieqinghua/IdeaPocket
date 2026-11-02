@@ -191,5 +191,5 @@
 ### Android 签名 APK 自更新
 - 做什么：从 GitHub Release 获取更新清单，在系统 DownloadManager 中下载、校验 SHA-256，并打开系统安装器覆盖安装。
 - 入口：首页右上角“更多选项”→“检查更新”；前台也会恢复下载状态。
-- 关键约束：仅 Android 且安装包必须包含原生更新模块；只接受 HTTPS、合法 APK 文件名、正整数版本码和 64 位 SHA-256；安装前保存并备份本地数据；需要系统允许安装未知来源应用。Expo Go 不支持该能力。
-- 证据：`src/hooks/useAppUpdates.js`、`src/lib/updateManifest.js`、`src/nativeUpdater.js`、`modules/ideapocket-updater/`。
+- 关键约束：仅 Android 且安装包必须包含原生更新模块；只接受 HTTPS、合法 APK 文件名、正整数版本码和 64 位 SHA-256；安装前保存并备份本地数据；需要系统允许安装未知来源应用。Expo Go 不支持该能力。下载中菜单项保持可点：显示百分比（拿不到总大小时显示已下载体积），点按可查看系统下载状态、取消或改用浏览器下载 APK；超过 60 秒没有进展（含原生查询不返回）时提示“下载无进展”；系统丢失下载任务时退出下载状态并提供浏览器下载；目标版本已安装后自动清理旧下载记录。
+- 证据：`src/hooks/useAppUpdates.js`、`src/updateDownload.js`、`src/lib/updateManifest.js`、`src/nativeUpdater.js`、`modules/ideapocket-updater/`。

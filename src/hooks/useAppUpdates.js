@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Platform } from 'react-native';
+import { Alert, AppState, Linking, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 import { fetchLatestNativeUpdate, isNewerNativeBuild } from '../lib/updateManifest';
 import {
+  cancelNativeDownload,
   enqueueNativeDownload,
   getCurrentBuildInfo,
   getNativeDownloadState,
@@ -11,13 +12,21 @@ import {
   requestUpdateNotificationPermission,
   verifyNativeDownload,
 } from '../nativeUpdater';
+import {
+  classifyNativeDownload,
+  describeNativeDownload,
+  DOWNLOAD_STALL_MS,
+  RELEASES_PAGE_URL,
+} from '../updateDownload';
 
 const FOREGROUND_CHECK_INTERVAL_MS = 15 * 60 * 1000;
-const ACTIVE_DOWNLOAD_STATES = new Set(['pending', 'running', 'paused']);
 
 const initialState = {
   phase: 'idle',
   progress: 0,
+  bytesDownloaded: 0,
+  totalBytes: 0,
+  stalled: false,
   error: '',
   nativeManifest: null,
 };
@@ -27,13 +36,23 @@ const hotUpdatesEnabled = () => !__DEV__ && Updates.isEnabled;
 export function useAppUpdates(store) {
   const { prepareForUpdate, ready } = store;
   const [state, setState] = useState(initialState);
+  const phaseRef = useRef(state.phase);
   const mountedRef = useRef(true);
   const checkingRef = useRef(false);
   const lastForegroundCheckRef = useRef(0);
   const completionAlertRef = useRef('');
+  const manifestRef = useRef(state.nativeManifest);
+  const currentVersionCodeRef = useRef(0);
+  const pollStartedAtRef = useRef(0);
+  const progressMarkRef = useRef({ bytes: 0, at: 0 });
+  const lastDownloadRef = useRef(null);
+  phaseRef.current = state.phase;
+  manifestRef.current = state.nativeManifest;
 
   const patchState = useCallback((patch) => {
     if (!mountedRef.current) return;
+    // 同步记下阶段：开始下载后紧接着的状态查询不能等到重新渲染才知道“正在下载”。
+    if (patch.phase) phaseRef.current = patch.phase;
     setState((current) => ({ ...current, ...patch }));
   }, []);
 
@@ -68,7 +87,7 @@ export function useAppUpdates(store) {
 
   const offerDownloadedUpdate = useCallback((downloadState) => {
     const key = `${downloadState?.downloadId || ''}:${downloadState?.expectedVersionCode || ''}`;
-    patchState({ phase: 'native-ready', progress: 100, error: '' });
+    patchState({ phase: 'native-ready', progress: 100, stalled: false, error: '' });
     if (!key || completionAlertRef.current === key) return;
     completionAlertRef.current = key;
     Alert.alert(
@@ -81,37 +100,104 @@ export function useAppUpdates(store) {
     );
   }, [installDownloadedUpdate, patchState]);
 
+  const openDownloadInBrowser = useCallback(() => {
+    // 系统下载器不可靠时的兜底：用浏览器下载同一个 APK，手动覆盖安装后旧下载记录会自动清理。
+    Linking.openURL(manifestRef.current?.apkUrl || RELEASES_PAGE_URL).catch((error) => {
+      Alert.alert('无法打开浏览器', error?.message || RELEASES_PAGE_URL);
+    });
+  }, []);
+
+  const cancelDownload = useCallback(async () => {
+    patchState({ ...initialState });
+    try {
+      await cancelNativeDownload();
+    } catch (error) {
+      console.warn('cancel update download failed', error);
+    }
+  }, [patchState]);
+
   const refreshDownloadState = useCallback(async () => {
     if (!nativeUpdaterAvailable) return null;
+    if (pollStartedAtRef.current) {
+      // 上一次原生查询还没返回；若长期不返回，同样标记为无进展，让用户能取消或改用浏览器。
+      if (Date.now() - pollStartedAtRef.current > DOWNLOAD_STALL_MS) patchState({ stalled: true });
+      return null;
+    }
+    pollStartedAtRef.current = Date.now();
     try {
       const download = await getNativeDownloadState();
-      if (ACTIVE_DOWNLOAD_STATES.has(download?.status)) {
+      lastDownloadRef.current = download;
+      if (!currentVersionCodeRef.current) {
+        const build = await getCurrentBuildInfo().catch(() => null);
+        currentVersionCodeRef.current = Number(build?.versionCode) || 0;
+      }
+      const kind = classifyNativeDownload(download, currentVersionCodeRef.current);
+      const wasDownloading = phaseRef.current === 'downloading';
+      if (kind === 'active') {
+        const bytes = Number(download.bytesDownloaded) || 0;
+        const now = Date.now();
+        if (!progressMarkRef.current.at || bytes !== progressMarkRef.current.bytes) {
+          progressMarkRef.current = { bytes, at: now };
+        }
         patchState({
           phase: 'downloading',
           progress: Number(download.progress) || 0,
+          bytesDownloaded: bytes,
+          totalBytes: Number(download.totalBytes) || 0,
+          stalled: now - progressMarkRef.current.at > DOWNLOAD_STALL_MS,
           error: '',
         });
-      } else if (download?.status === 'successful') {
+      } else if (kind === 'ready') {
         offerDownloadedUpdate(download);
-      } else if (download?.status === 'failed') {
+      } else if (kind === 'failed') {
         patchState({
           phase: 'failed',
+          stalled: false,
           error: `系统下载失败（错误码 ${download.reason || '未知'}）`,
         });
+      } else if (kind === 'obsolete' || kind === 'lost' || (kind === 'none' && wasDownloading)) {
+        await cancelNativeDownload().catch(() => {});
+        // 保留清单，浏览器兜底仍能直接下载同一个 APK。
+        if (wasDownloading) patchState({ ...initialState, nativeManifest: manifestRef.current });
+        if (kind !== 'obsolete' && wasDownloading) {
+          Alert.alert(
+            '下载任务丢失',
+            `系统下载管理器没有返回这次下载的结果。\n${describeNativeDownload(download)}\n\n可以重新检查更新，或改用浏览器下载安装包后手动安装。`,
+            [
+              { text: '稍后', style: 'cancel' },
+              { text: '用浏览器下载', onPress: openDownloadInBrowser },
+            ]
+          );
+        }
       }
-      return download;
+      return { ...download, kind };
     } catch (error) {
-      patchState({ phase: 'failed', error: error?.message || '读取下载状态失败' });
+      patchState({ phase: 'failed', stalled: false, error: error?.message || '读取下载状态失败' });
       return null;
+    } finally {
+      pollStartedAtRef.current = 0;
     }
-  }, [offerDownloadedUpdate, patchState]);
+  }, [offerDownloadedUpdate, openDownloadInBrowser, patchState]);
+
+  const showDownloadOptions = useCallback(() => {
+    const download = lastDownloadRef.current;
+    Alert.alert(
+      state.stalled ? '下载没有进展' : '正在下载更新',
+      `${describeNativeDownload(download)}\n\n可以继续等待；若系统下载长时间不动，可取消后重试，或用浏览器下载安装包手动安装。`,
+      [
+        { text: '取消下载', style: 'destructive', onPress: cancelDownload },
+        { text: '用浏览器下载', onPress: openDownloadInBrowser },
+        { text: '继续等待', style: 'cancel' },
+      ]
+    );
+  }, [cancelDownload, openDownloadInBrowser, state.stalled]);
 
   const beginNativeDownload = useCallback(async (manifest) => {
     try {
+      progressMarkRef.current = { bytes: 0, at: Date.now() };
       patchState({
+        ...initialState,
         phase: 'downloading',
-        progress: 0,
-        error: '',
         nativeManifest: manifest,
       });
       try {
@@ -168,6 +254,10 @@ export function useAppUpdates(store) {
 
   const checkForUpdates = useCallback(async () => {
     if (checkingRef.current) return;
+    if (state.phase === 'downloading') {
+      showDownloadOptions();
+      return;
+    }
     if (state.phase === 'native-ready') {
       completionAlertRef.current = '';
       offerDownloadedUpdate(await getNativeDownloadState());
@@ -183,7 +273,7 @@ export function useAppUpdates(store) {
     try {
       if (Platform.OS === 'android' && nativeUpdaterAvailable) {
         const persistedDownload = await refreshDownloadState();
-        if (persistedDownload?.status === 'successful' || ACTIVE_DOWNLOAD_STATES.has(persistedDownload?.status)) {
+        if (persistedDownload?.kind === 'ready' || persistedDownload?.kind === 'active') {
           return;
         }
         try {
@@ -224,6 +314,7 @@ export function useAppUpdates(store) {
     offerNativeUpdate,
     patchState,
     refreshDownloadState,
+    showDownloadOptions,
     state.phase,
   ]);
 

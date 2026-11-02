@@ -16,6 +16,12 @@
 
 同日可合并相关提交，但不得把提交日期当成未提交工作的日期。合并提交只在提供额外语义时记录，避免重复抄写其内容提交。
 
+## 2026-11-02 · 本次新增，未发布工作区
+- 改动：应用内 APK 更新的下载状态改为全量归类：系统丢失任务（`missing` / `unknown` / 记录消失）时退出下载状态并提供浏览器下载；60 秒无字节进展或原生状态查询不返回时标记“下载无进展”；目标版本已安装时清理旧下载记录；拿不到总大小时显示已下载体积。下载中菜单项不再置灰，点按可查看状态、取消或改用浏览器下载。
+- 原因：用户在 0.5.0 真机上点“检查更新”下载 0.5.1，菜单在漫长的下载过程中一直停在“下载更新 0%”且不可点，看起来像卡死，直到很久后才弹出下载成功通知。原逻辑只处理 pending / running / paused / successful / failed，其他返回值和挂起的原生调用都会让界面永久停在下载中。
+- 证据：本次会话用户反馈；`src/hooks/useAppUpdates.js`、`src/updateDownload.js`、`src/components/HomeHeader.js`、`src/__tests__/useAppUpdates.test.js`、`src/__tests__/updateDownload.test.js`。
+- 待确认：下载最终成功，0% 不动初步判断为系统下载器拿不到总大小（`COLUMN_TOTAL_SIZE_BYTES` 为 -1）且经 GitHub 下载很慢，但未取得设备上的实际返回值；修复尚未发布到设备。
+
 ## 2026-11-01 · 0.5.1 发布
 - 改动：EAS production 构建 0.5.1（Android versionCode 10，沿用 EAS 默认签名凭据），生成 `update.json`，并在 GitHub 发布 `v0.5.1` Release（标记为 Latest），附件为 `IdeaPocket-v0.5.1.apk` 与 `update.json`。
 - 原因：让已安装 0.5.0 的设备通过“检查更新”获取本版本；运行时版本不同，无法走热更新。
