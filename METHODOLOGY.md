@@ -162,6 +162,14 @@
 - 适用范围：Android adaptive icon、启动图和品牌位图资源。
 - 证据：`src/assets/icons/app-icon-adaptive-foreground.png`、`app.json`、`a3e7e3a`。
 
+## SVG 渐变几何用百分比，状态切换要互斥淡化
+- 现象：语音遮罩在浏览器预览里覆盖到屏幕中部，Android 真机上却只剩底部一小段，提示文字落在近白区域看不清；上滑取消时红色遮罩里透出蓝色，变成紫色。
+- 根因：react-native-svg 的 Android 径向渐变按 `ry/rx` 缩放纵轴，只对百分比形式的 `cy` 做了反向换算，绝对数值的 `cy` 会被额外放大，中心落到屏幕外。两层半透明渐变用“上层淡入、下层不动”的方式切换，上层不透明度不到 1 的区域会和下层混色。
+- 形成的判断：react-native-svg 的 `RadialGradient` 几何参数（`cx`、`cy`、`rx`、`ry`）统一用百分比字符串，不用 `userSpaceOnUse` 绝对坐标；多个半透明状态层交叉切换时，旧层与新层的不透明度互补（`1 - p` / `p`），终态只保留一种颜色。
+- 防再犯检查：浏览器或设计稿预览只作参考，渐变改动必须在 Android 真机或模拟器截图核对覆盖范围；切换到终态后取色确认没有残留旧状态颜色。
+- 适用范围：使用 react-native-svg 渐变的遮罩、背景与状态色切换。
+- 证据：`node_modules/react-native-svg/android/src/main/java/com/horcrux/svg/Brush.java` 的 `RADIAL_GRADIENT` 分支；`src/components/VoiceOverlay.js`；2026-11-01 真机截图。
+
 ## 自动测试与构建不是设备 / 视觉验收
 - 现象：Jest 与 Expo export 均通过，但键盘遮挡、滚动时序、图标裁切或系统栏颜色仍可能在设备上错误。
 - 根因：把逻辑 / 打包可行性证据外推成真实运行环境的交互和视觉证据。

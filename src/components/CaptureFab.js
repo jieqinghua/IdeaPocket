@@ -34,9 +34,11 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
   const sourceRef = useRef('text');
   const pendingVoiceNoteRef = useRef('');
 
+  // 语音遮罩顶部是浅色渐变，文字输入是深色蒙层；上层据此决定状态栏样式。
+  const overlayKind = recording || busy || closing ? 'voice' : composerOpen ? 'composer' : null;
   useEffect(() => {
-    onOverlayChange?.(composerOpen || recording || busy || closing);
-  }, [busy, closing, composerOpen, onOverlayChange, recording]);
+    onOverlayChange?.(!!overlayKind, overlayKind);
+  }, [onOverlayChange, overlayKind]);
 
   useEffect(() => () => {
     clearTimeout(holdTimer.current);
@@ -131,6 +133,7 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
     if (c !== cancelRef.current) {
       cancelRef.current = c;
       setCanceling(c);
+      Haptics.selectionAsync().catch(() => {});
     }
   };
 
@@ -221,7 +224,8 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
           accessibilityRole="button"
           accessibilityLabel="按住记录，轻点可文字输入"
           accessibilityHint="长按开始录音，上滑取消"
-          style={[styles.fab, recording && styles.fabRec, canceling && styles.fabCancel, { opacity: presentationOpacity }]}
+          // 录音时按钮隐身但保持挂载，继续接收上滑和松手事件；视觉反馈交给全屏遮罩。
+          style={[styles.fab, { opacity: recording ? 0 : presentationOpacity }]}
           onStartShouldSetResponder={() => true}
           onMoveShouldSetResponder={() => true}
           onResponderGrant={grant}
@@ -230,9 +234,7 @@ export default function CaptureFab({ onSubmit, onOverlayChange, presentationOpac
           onResponderTerminate={terminate}
         >
           <VoiceWaveformIcon size={metrics.standardIcon} color={theme.onBrand} />
-          <Text style={styles.fabLabel}>
-            {canceling ? '松开取消' : recording ? '松开完成' : '按住记录'}
-          </Text>
+          <Text style={styles.fabLabel}>按住记录</Text>
         </Animated.View>
       )}
     </>
@@ -264,8 +266,6 @@ const createStyles = (theme) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     zIndex: 20,
   },
-  fabRec: { backgroundColor: theme.brandPressed, transform: [{ scale: 1.03 }], zIndex: 60 },
-  fabCancel: { backgroundColor: theme.wilting },
   fabLabel: {
     ...type.content,
     color: theme.onBrand,

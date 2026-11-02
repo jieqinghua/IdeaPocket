@@ -47,7 +47,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [detailRoute, dispatchDetail] = useReducer(detailRouteReducer, INITIAL_DETAIL_ROUTE);
-  const [voiceOverlayActive, setVoiceOverlayActive] = useState(false);
+  const [captureOverlay, setCaptureOverlay] = useState(null);
+  const voiceOverlayActive = !!captureOverlay;
+  const handleCaptureOverlayChange = useCallback((active, kind) => setCaptureOverlay(active ? kind : null), []);
   const [tabSwipeActive, setTabSwipeActive] = useState(false);
   const [deepSeekKey, setDeepSeekKey] = useState('');
   const [dashscopeKey, setDashscopeKey] = useState('');
@@ -308,8 +310,8 @@ export default function App() {
   return (
     <SafeAreaView style={styles.root}>
       <ExpoStatusBar
-        style={voiceOverlayActive || theme.mode === 'dark' ? 'light' : 'dark'}
-        backgroundColor={voiceOverlayActive ? theme.overlay : theme.bg}
+        style={captureOverlay === 'composer' || theme.mode === 'dark' ? 'light' : 'dark'}
+        backgroundColor={captureOverlay === 'composer' ? theme.overlay : theme.bg}
         translucent={false}
       />
       {!!store.saveError && (
@@ -410,7 +412,7 @@ export default function App() {
           {shouldRenderCapture && (
             <CaptureFab
               onSubmit={handleAddNote}
-              onOverlayChange={setVoiceOverlayActive}
+              onOverlayChange={handleCaptureOverlayChange}
               presentationOpacity={captureOpacity}
             />
           )}
